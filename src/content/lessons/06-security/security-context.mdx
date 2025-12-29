@@ -1,0 +1,188 @@
+---
+title: "Security Context"
+description: "Configure container security settings"
+order: 26
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Security context controls privilege and access settings. Apply at Pod level (all containers) or container level. Essential for production hardening and defense in depth.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="security-context-pod.yaml" />
+    <Row last>
+      <p slot="docs">Pod-level security context applies to all containers. <code>runAsNonRoot</code> prevents running as root. <code>fsGroup</code> sets GID for mounted volumes. <code>supplementalGroups</code> adds additional GIDs.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    supplementalGroups:
+      - 2000
+      - 3000
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="security-context-container.yaml" />
+    <Row last>
+      <p slot="docs">Container-level security context overrides Pod level for that container. Drops Linux capabilities and prevents privilege escalation. Each container can have different settings.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="security-context-capabilities.yaml" />
+    <Row last>
+      <p slot="docs">Linux capabilities are fine-grained privileges. Drop <code>ALL</code> and add only what's needed. Common additions: <code>NET_BIND_SERVICE</code> (bind to ports &lt;1024), <code>SYS_PTRACE</code> (debugging). Avoid dangerous capabilities like SYS_ADMIN.</p>
+      <Fragment slot="code">
+```yaml
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - NET_BIND_SERVICE
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="security-context-seccomp.yaml" />
+    <Row last>
+      <p slot="docs">Seccomp (Secure Computing Mode) restricts syscalls a container can make. <code>RuntimeDefault</code> uses container runtime's default profile. <code>Localhost</code> uses a custom profile from the node.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="security-context-readonly.yaml" />
+    <Row last>
+      <p slot="docs"><code>readOnlyRootFilesystem</code> makes the container filesystem immutable. Prevents attackers from writing malware. Mount writable volumes for directories that need writes.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      securityContext:
+        readOnlyRootFilesystem: true
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /var/cache
+  volumes:
+    - name: tmp
+      emptyDir: {}
+    - name: cache
+      emptyDir:
+        sizeLimit: 100Mi
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="security-context-production.yaml" />
+    <Row last>
+      <p slot="docs">Complete production-ready security context. Combine Pod and container settings for defense in depth. This is the recommended baseline for most workloads.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: app
+      image: my-app:v1
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: tmp
+      emptyDir: {}
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl exec my-pod -- id" />
+    <Row last terminal>
+      <p slot="docs">Debug security context issues by checking Pod events and container status. Common errors: "container has runAsNonRoot but image will run as root" and "permission denied" on volume mounts (often fsGroup issues). Use <code>id</code> command to verify running user/group.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl exec my-pod -- id
+uid=1000 gid=1000 groups=1000,2000,3000
+
+$ kubectl exec my-pod -- ls -la /var/lib/data
+drwxrwsr-x 2 root 1000 4096 Jan 15 10:00 .
+-rw-r--r-- 1 1000 1000  128 Jan 15 10:00 config.json
+
+$ kubectl get pod my-pod \
+    -o jsonpath='{.spec.securityContext}'
+{"fsGroup":1000,"runAsGroup":1000,"runAsNonRoot":true,"runAsUser":1000}
+
+$ kubectl describe pod my-pod | grep -A5 "State:"
+    State:          Running
+      Started:      Mon, 15 Jan 2024 10:00:00 +0000
+    Ready:          True
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

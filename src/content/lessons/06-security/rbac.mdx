@@ -1,0 +1,268 @@
+---
+title: "RBAC"
+description: "Role-based access control for the Kubernetes API"
+order: 28
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>RBAC controls who can do what in the cluster. Role defines permissions. RoleBinding grants them to users or ServiceAccounts. ClusterRole/ClusterRoleBinding for cluster-wide access.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="role.yaml" />
+    <Row last>
+      <p slot="docs">Role defines permissions within a namespace. <code>apiGroups</code> specifies API groups (empty string <code>""</code> means core API). <code>resources</code> are the objects. <code>verbs</code> are the allowed actions.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="rolebinding.yaml" />
+    <Row last>
+      <p slot="docs">RoleBinding grants a Role to subjects (user, group, or ServiceAccount) within a namespace. The Role and RoleBinding must be in the same namespace. Can have multiple subjects.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: my-app
+    namespace: default
+  - kind: User
+    name: jane@example.com
+    apiGroup: rbac.authorization.k8s.io
+  - kind: Group
+    name: developers
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="clusterrole.yaml" />
+    <Row last>
+      <p slot="docs">ClusterRole + ClusterRoleBinding for cluster-wide access. Use sparingly and prefer namespace-scoped roles. ClusterRoles can also be bound to specific namespaces via RoleBinding.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: secret-reader
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+---
+kind: ClusterRoleBinding
+metadata:
+  name: read-secrets-global
+subjects:
+  - kind: ServiceAccount
+    name: monitoring
+    namespace: monitoring
+roleRef:
+  kind: ClusterRole
+  name: secret-reader
+---
+kind: RoleBinding
+metadata:
+  name: read-secrets-in-default
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: my-app
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: secret-reader
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="role-verbs.yaml" />
+    <Row last>
+      <p slot="docs">Common verbs: <code>get</code>, <code>list</code>, <code>watch</code>, <code>create</code>, <code>update</code>, <code>patch</code>, <code>delete</code>, <code>deletecollection</code>. Use <code>*</code> for all verbs (dangerous). Access subresources like pods/log, pods/exec separately.</p>
+      <Fragment slot="code">
+```yaml
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["*"]
+
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+  - apiGroups: [""]
+    resources: ["pods/log", "pods/exec"]
+    verbs: ["get", "create"]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="role-resourcenames.yaml" />
+    <Row last>
+      <p slot="docs">Resource names restrict access to specific objects. Useful for granting access to one ConfigMap or Secret without access to all. Note: resourceNames doesn't apply to create/list operations.</p>
+      <Fragment slot="code">
+```yaml
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["my-app-config"]
+    verbs: ["get", "update"]
+
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["my-app"]
+    verbs: ["get", "update", "patch"]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="clusterrole-aggregation.yaml" />
+    <Row last>
+      <p slot="docs">Aggregated ClusterRoles combine rules from multiple ClusterRoles. Built-in roles like <code>admin</code>, <code>edit</code>, <code>view</code> use aggregation. Add permissions by creating ClusterRoles with matching labels.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        rbac.example.com/aggregate-to-monitoring: "true"
+rules: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring-pods
+  labels:
+    rbac.example.com/aggregate-to-monitoring: "true"
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="rolebinding-builtin.yaml" />
+    <Row last>
+      <p slot="docs">Built-in ClusterRoles: <code>cluster-admin</code> (superuser), <code>admin</code> (namespace admin), <code>edit</code> (read/write most resources), <code>view</code> (read-only). Bind these for common access patterns.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: namespace-admin
+  namespace: my-team
+subjects:
+  - kind: User
+    name: alice@example.com
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: RoleBinding
+metadata:
+  name: namespace-viewer
+  namespace: my-team
+subjects:
+  - kind: Group
+    name: contractors
+roleRef:
+  kind: ClusterRole
+  name: view
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl auth can-i create pods" />
+    <Row last terminal>
+      <p slot="docs">Debug RBAC with <code>kubectl auth can-i</code>. Check permissions for yourself or impersonate other users/ServiceAccounts. List all permissions to understand effective access.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl auth can-i create pods
+yes
+
+$ kubectl auth can-i delete deployments -n production
+no
+
+$ kubectl auth can-i get secrets \
+    --as=system:serviceaccount:default:my-app
+no
+
+$ kubectl auth can-i '*' '*' --as=jane@example.com
+no
+
+$ kubectl auth can-i --list
+Resources                          Non-Resource URLs   Verbs
+pods                               []                  [get list watch]
+configmaps                         []                  [get list]
+...
+
+$ kubectl auth can-i --list \
+    --as=system:serviceaccount:default:my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
