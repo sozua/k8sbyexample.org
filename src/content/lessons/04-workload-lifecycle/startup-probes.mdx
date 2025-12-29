@@ -1,0 +1,251 @@
+---
+title: "Startup Probes"
+description: "Handle slow-starting containers with dedicated startup checks"
+order: 23
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Startup probes indicate whether the application has started successfully. While the startup probe is running, liveness and readiness probes are disabled. Use for: legacy apps with long initialization, apps that load large datasets at startup, apps with unpredictable startup times.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="startup-probe-basic.yaml" />
+    <Row last>
+      <p slot="docs">A startup probe protects slow-starting containers. It checks every 10 seconds for up to 30 attempts (5 minutes total). Once it succeeds, liveness/readiness probes take over. If it fails all attempts, the container is killed.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: slow-starting-app
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      ports:
+        - containerPort: 8080
+      startupProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        failureThreshold: 30
+        periodSeconds: 10
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        periodSeconds: 10
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="startup-probe-vs-liveness.yaml" />
+    <Row last>
+      <p slot="docs"><strong>Without startup probe:</strong> liveness checks start immediately. If <code>initialDelaySeconds</code> is too short, healthy slow apps get killed. If too long, actual failures aren't detected quickly. <strong>With startup probe:</strong> liveness starts only after startup succeeds.</p>
+      <Fragment slot="code">
+```yaml
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 300
+  periodSeconds: 10
+---
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  failureThreshold: 30
+  periodSeconds: 10
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  periodSeconds: 10
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="startup-probe-exec.yaml" />
+    <Row last>
+      <p slot="docs">Exec startup probes run commands inside the container. Useful for checking if initialization scripts completed, if config files exist, or if database migrations finished. Exit code 0 = success.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-migration
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      startupProbe:
+        exec:
+          command:
+            - cat
+            - /app/initialized
+        failureThreshold: 60
+        periodSeconds: 5
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="startup-probe-tcp.yaml" />
+    <Row last>
+      <p slot="docs">TCP socket startup probes check if a port is accepting connections. Useful for databases, message brokers, and apps that don't have HTTP endpoints during startup. Simpler than HTTP for apps that serve TCP protocols.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: database
+spec:
+  containers:
+    - name: postgres
+      image: postgres:16
+      ports:
+        - containerPort: 5432
+      startupProbe:
+        tcpSocket:
+          port: 5432
+        failureThreshold: 30
+        periodSeconds: 10
+      livenessProbe:
+        exec:
+          command:
+            - pg_isready
+            - -U
+            - postgres
+        periodSeconds: 10
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="startup-probe-grpc.yaml" />
+    <Row last>
+      <p slot="docs">gRPC startup probes use the standard gRPC health checking protocol. The app must implement the <code>grpc.health.v1.Health</code> service. Available in Kubernetes 1.24+.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: grpc-app
+spec:
+  containers:
+    - name: app
+      image: my-grpc-app:v1
+      ports:
+        - containerPort: 50051
+      startupProbe:
+        grpc:
+          port: 50051
+        failureThreshold: 30
+        periodSeconds: 10
+      livenessProbe:
+        grpc:
+          port: 50051
+        periodSeconds: 10
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="startup-probe-deployment.yaml" />
+    <Row last>
+      <p slot="docs">During rolling updates, startup probes ensure new Pods are fully initialized before old ones are terminated. Combined with readiness probes, this prevents routing traffic to starting containers.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+spec:
+  replicas: 3
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      containers:
+        - name: api
+          image: api-server:v2
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe pod slow-starting-app" />
+    <Row last terminal>
+      <p slot="docs">Monitor startup probe progress in Pod events. Failed probes show warnings. Once startup succeeds, events stop and liveness/readiness take over. Total startup time = <code>failureThreshold × periodSeconds</code>.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe pod slow-starting-app
+Events:
+  Type     Reason     Message
+  ----     ------     -------
+  Normal   Scheduled  Successfully assigned default/slow-starting-app
+  Normal   Pulled     Container image "my-app:v1" pulled
+  Normal   Created    Created container app
+  Normal   Started    Started container app
+  Warning  Unhealthy  Startup probe failed: connection refused
+  Warning  Unhealthy  Startup probe failed: connection refused
+  Normal   Started    Container started successfully
+
+$ kubectl get pod slow-starting-app
+NAME               READY   STATUS    RESTARTS   AGE
+slow-starting-app  1/1     Running   0          3m
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

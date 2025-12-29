@@ -1,0 +1,171 @@
+---
+title: "Lifecycle Hooks"
+description: "Run code at container start and stop"
+order: 18
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Lifecycle hooks run at container start (<code>postStart</code>) and before termination (<code>preStop</code>). Use for initialization, service registration, graceful shutdown, and cleanup.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-lifecycle.yaml" />
+    <Row last>
+      <p slot="docs">Hooks are defined in the <code>lifecycle</code> block of a container. Both <code>postStart</code> and <code>preStop</code> support exec commands or HTTP requests.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      lifecycle:
+        postStart:
+          exec:
+            command: ["/bin/sh", "-c", "echo Started >> /var/log/app.log"]
+        preStop:
+          exec:
+            command: ["/bin/sh", "-c", "sleep 15"]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-poststart.yaml" />
+    <Row last>
+      <p slot="docs"><code>postStart</code> runs immediately after container creation, in parallel with the entrypoint. Container is not Ready until postStart completes. If it fails, container is killed.</p>
+      <Fragment slot="code">
+```yaml
+lifecycle:
+  postStart:
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - |
+          curl -X POST http://consul:8500/v1/agent/service/register \
+            -d '{"name":"my-app","port":8080}'
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-prestop.yaml" />
+    <Row last>
+      <p slot="docs"><code>preStop</code> delays SIGTERM, allowing in-flight requests to complete. Critical for zero-downtime deployments. The sleep gives time for Service endpoints to update before container stops accepting traffic.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  terminationGracePeriodSeconds: 60
+  containers:
+    - name: app
+      lifecycle:
+        preStop:
+          exec:
+            command: ["/bin/sh", "-c", "sleep 15"]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-termination.yaml" />
+    <Row last>
+      <p slot="docs">Pod termination sequence: 1) Pod marked terminating, 2) Removed from Service endpoints (parallel with preStop), 3) preStop runs, 4) SIGTERM sent, 5) Wait for graceful shutdown, 6) SIGKILL after terminationGracePeriodSeconds.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  terminationGracePeriodSeconds: 60
+  containers:
+    - name: app
+      lifecycle:
+        preStop:
+          exec:
+            command:
+              - /bin/sh
+              - -c
+              - |
+                sleep 5
+                /app/shutdown.sh
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-http-hooks.yaml" />
+    <Row last>
+      <p slot="docs">HTTP hooks call an endpoint instead of running a command. Response status doesn't matter, only connection errors cause failure. Useful for distroless or minimal containers without shell.</p>
+      <Fragment slot="code">
+```yaml
+lifecycle:
+  postStart:
+    httpGet:
+      path: /hooks/started
+      port: 8080
+  preStop:
+    httpGet:
+      path: /hooks/shutdown
+      port: 8080
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-grace-period.yaml" />
+    <Row last>
+      <p slot="docs">The <code>terminationGracePeriodSeconds</code> includes preStop execution time. If preStop takes 15s and you need 75s for graceful shutdown, set grace period to at least 90s. Default is 30s.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  terminationGracePeriodSeconds: 90
+  containers:
+    - name: app
+      lifecycle:
+        preStop:
+          exec:
+            command: ["sleep", "15"]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe pod my-app" />
+    <Row last terminal>
+      <p slot="docs">Debug hooks with events. postStart failures appear in Pod events. preStop failures are harder to catch, so add logging in your hook script. Hooks don't have stdout/stderr.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe pod my-app | grep -A5 Events
+Events:
+  Type     Reason               Age   Message
+  Normal   Scheduled            60s   Successfully assigned default/my-app
+  Normal   Pulled               58s   Container image "my-app:v1" already present
+  Warning  FailedPostStartHook  55s   Exec lifecycle hook failed
+  Normal   Killing              55s   FailedPostStartHook
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
