@@ -1,0 +1,212 @@
+---
+title: "DNS e Descoberta de Serviços"
+description: "Como Pods se encontram pelo nome"
+order: 14
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Kubernetes executa CoreDNS para resolução de nomes interna. Todo Service ganha um registro DNS A automaticamente. Pods resolvem nomes de Service para ClusterIPs sem hardcodar endereços.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="service.yaml" />
+    <Row last>
+      <p slot="docs">Services automaticamente ganham registros DNS. Este Service recebe DNS: <code>my-app.production.svc.cluster.local</code> com um registro A apontando para o ClusterIP.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app
+  namespace: production
+spec:
+  ports:
+    - port: 80
+  selector:
+    app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="curl http://my-app" />
+    <Row last terminal>
+      <p slot="docs">Resolução DNS do mais curto ao FQDN. Mesmo namespace: apenas nome do service. Cross-namespace: <code>service.namespace</code>. Com sufixo svc: <code>service.namespace.svc</code>. FQDN completo (raramente necessário): <code>service.namespace.svc.cluster.local</code>.</p>
+      <Fragment slot="code">
+```bash
+$ curl http://my-app
+Hello from my-app!
+
+$ curl http://my-app.other-namespace
+Hello from my-app!
+
+$ curl http://my-app.other-namespace.svc
+
+$ curl http://my-app.other-namespace.svc.cluster.local
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="nslookup my-app.default.svc.cluster.local" />
+    <Row last terminal>
+      <p slot="docs">Services também ganham registros SRV para portas nomeadas. Registros SRV contêm informação de porta, útil para descoberta dinâmica de portas.</p>
+      <Fragment slot="code">
+```bash
+$ nslookup my-app.default.svc.cluster.local
+Server:    10.96.0.10
+Address:   10.96.0.10#53
+
+Name:      my-app.default.svc.cluster.local
+Address:   10.96.0.100
+
+$ nslookup -type=SRV _http._tcp.my-app.default.svc.cluster.local
+_http._tcp.my-app.default.svc.cluster.local   SRV 0 100 80 my-app.default.svc.cluster.local
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="headless-service.yaml" />
+    <Row last>
+      <p slot="docs">Headless Services (<code>clusterIP: None</code>) retornam IPs de Pods diretamente ao invés de um ClusterIP. DNS retorna todos os IPs de Pods correspondentes. Essencial para StatefulSets e load balancing do lado cliente.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-db
+spec:
+  clusterIP: None
+  ports:
+    - port: 5432
+  selector:
+    app: postgres
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="nslookup my-db-0.my-db" />
+    <Row last terminal>
+      <p slot="docs">Pods de StatefulSet ganham nomes DNS estáveis e previsíveis via headless Services. Cada Pod ganha seu próprio registro A: <code>pod-name.service.namespace.svc.cluster.local</code>.</p>
+      <Fragment slot="code">
+```bash
+$ nslookup my-db-0.my-db.default.svc.cluster.local
+Address: 10.244.1.5
+
+$ nslookup my-db-1.my-db.default.svc.cluster.local
+Address: 10.244.2.8
+
+$ nslookup my-db-2.my-db.default.svc.cluster.local
+Address: 10.244.3.12
+
+$ psql -h my-db-0.my-db.default.svc.cluster.local
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-dns-config.yaml" />
+    <Row last>
+      <p slot="docs">DNS policy do Pod controla como Pods resolvem nomes. <code>ClusterFirst</code> é o padrão. Use <code>None</code> com <code>dnsConfig</code> customizado para casos especiais. Opções: Default, ClusterFirst, ClusterFirstWithHostNet, None.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  dnsPolicy: ClusterFirst
+  dnsConfig:
+    nameservers:
+      - 8.8.8.8
+    searches:
+      - my-namespace.svc.cluster.local
+    options:
+      - name: ndots
+        value: "5"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get configmap coredns -n kube-system" />
+    <Row last terminal>
+      <p slot="docs">Configuração do CoreDNS está em um ConfigMap no kube-system. Customize para forwarding de DNS externo, domínios customizados ou caching. Pods recebem <code>/etc/resolv.conf</code> configurado pelo kubelet.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get configmap coredns -n kube-system -o yaml
+apiVersion: v1
+kind: ConfigMap
+data:
+  Corefile: |
+    .:53 {
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+           pods insecure
+           fallthrough in-addr.arpa ip6.arpa
+        }
+        forward . /etc/resolv.conf
+        cache 30
+    }
+
+$ kubectl exec my-pod -- cat /etc/resolv.conf
+nameserver 10.96.0.10
+search default.svc.cluster.local svc.cluster.local cluster.local
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl run dns-test --rm -it --image=busybox:1.28 -- sh" />
+    <Row last terminal>
+      <p slot="docs">Debug problemas de DNS verificando pods do CoreDNS, testando resolução de dentro do cluster e verificando se endpoints de Service existem. Problema comum: configuração ndots causa falha em lookups externos.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl run dns-test --rm -it --image=busybox:1.28 -- sh
+/ # nslookup my-app
+Server:    10.96.0.10
+Address 1: 10.96.0.10 kube-dns.kube-system.svc.cluster.local
+Name:      my-app
+Address 1: 10.96.0.100
+
+/ # nslookup kubernetes.default
+Name:      kubernetes.default
+Address 1: 10.96.0.1
+
+$ kubectl logs -n kube-system -l k8s-app=kube-dns
+[INFO] 10.244.0.5:53842 - 12345 "A IN my-app.default.svc.cluster.local."
+
+$ kubectl get pods -n kube-system -l k8s-app=kube-dns
+NAME                       READY   STATUS    AGE
+coredns-5644d7b6d9-abc12   1/1     Running   10d
+coredns-5644d7b6d9-def34   1/1     Running   10d
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

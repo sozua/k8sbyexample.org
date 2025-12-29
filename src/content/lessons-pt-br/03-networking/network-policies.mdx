@@ -1,0 +1,240 @@
+---
+title: "Políticas de Rede"
+description: "Controle fluxo de tráfego entre Pods"
+order: 13
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>NetworkPolicies são regras de firewall para Pods. Por padrão, todos os Pods podem se comunicar livremente. Policies restringem tráfego a regras de permissão explícitas. Requer um CNI que suporte NetworkPolicy (Calico, Cilium, etc.).</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="network-policy.yaml" />
+    <Row last>
+      <p slot="docs">NetworkPolicies usam a API <code>networking.k8s.io/v1</code>. <code>podSelector</code> define quais Pods a policy se aplica. Uma vez selecionados, Pods ficam isolados para os <code>policyTypes</code> especificados.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-policy
+  namespace: my-app
+spec:
+  podSelector:
+    matchLabels:
+      app: api
+  policyTypes:
+    - Ingress
+    - Egress
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="network-policy-ingress.yaml" />
+    <Row last>
+      <p slot="docs">Regras de ingress controlam tráfego de entrada. Este exemplo permite tráfego de Pods frontend na porta 8080. Selector vazio <code>{"{}"}</code> seleciona todos os Pods no namespace.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  podSelector:
+    matchLabels:
+      app: api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 8080
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="network-policy-logic.yaml" />
+    <Row last>
+      <p slot="docs">Múltiplos selectors em um bloco <code>from</code> usam lógica AND (primeiro exemplo: requer AMBOS namespace E pod selector). Múltiplos blocos <code>from</code> usam lógica OR (segundo exemplo: corresponde QUALQUER UM). Cuidado com esta distinção - é uma fonte comum de erros em policies.</p>
+      <Fragment slot="code">
+```yaml
+ingress:
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            env: production
+        podSelector:
+          matchLabels:
+            role: frontend
+---
+ingress:
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            env: production
+      - podSelector:
+          matchLabels:
+            role: frontend
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="network-policy-namespace.yaml" />
+    <Row last>
+      <p slot="docs">Permita tráfego de outros namespaces usando <code>namespaceSelector</code>. A label <code>kubernetes.io/metadata.name</code> é auto-aplicada a todos os namespaces. Selector vazio <code>{"{}"}</code> corresponde qualquer namespace.</p>
+      <Fragment slot="code">
+```yaml
+ingress:
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
+    ports:
+      - protocol: TCP
+        port: 9090
+  - from:
+      - namespaceSelector: {}
+        podSelector:
+          matchLabels:
+            role: ingress-controller
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="network-policy-egress.yaml" />
+    <Row last>
+      <p slot="docs">Controle tráfego de egress (saída). Primeira regra permite DNS (porta 53) - crítico ou Pods não conseguem resolver nomes. Segunda regra permite HTTPS externo exceto IPs privados. Use <code>ipBlock</code> para permitir/negar ranges CIDR específicos.</p>
+      <Fragment slot="code">
+```yaml
+egress:
+  - to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+    ports:
+      - protocol: UDP
+        port: 53
+  - to:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+    ports:
+      - protocol: TCP
+        port: 443
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="default-deny.yaml" />
+    <Row last>
+      <p slot="docs">Policies default deny isolam um namespace. Aplique estas primeiro, depois adicione regras de permissão específicas. Boa prática para clusters multi-tenant e networking zero-trust.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="network-policy-ports.yaml" />
+    <Row last>
+      <p slot="docs">Portas nomeadas referenciam nomes de porta do container ao invés de números. Mais manutenível quando números de porta mudam. Use <code>endPort</code> para corresponder ranges de portas.</p>
+      <Fragment slot="code">
+```yaml
+ingress:
+  - from:
+      - podSelector:
+          matchLabels:
+            app: frontend
+    ports:
+      - protocol: TCP
+        port: http
+      - protocol: TCP
+        port: 8000
+        endPort: 8100
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get networkpolicies -n my-app" />
+    <Row last terminal>
+      <p slot="docs">Debug NetworkPolicies verificando quais policies se aplicam a um Pod e verificando suporte do CNI. Policies são aditivas - se qualquer policy permite tráfego, ele é permitido.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get networkpolicies -n my-app
+NAME                   POD-SELECTOR   AGE
+api-policy             app=api        5m
+default-deny-ingress   <none>         10m
+
+$ kubectl describe networkpolicy api-policy
+Spec:
+  PodSelector: app=api
+  Allowing ingress traffic:
+    To Port: 8080/TCP
+    From:
+      PodSelector: app=frontend
+
+$ kubectl run test --rm -it --image=busybox -- wget -qO- http://api:8080
+Hello from API!
+
+$ kubectl get pods -n kube-system -l k8s-app=calico-node
+NAME                READY   STATUS    AGE
+calico-node-abc12   1/1     Running   30d
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

@@ -1,0 +1,249 @@
+---
+title: "Ingress"
+description: "Roteamento HTTP e terminação TLS para Services"
+order: 12
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Ingress roteia tráfego HTTP/HTTPS externo para Services. Requer um Ingress Controller (nginx-ingress, ALB, Traefik, etc.). Um Ingress pode rotear para muitos Services baseado em host e path.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="ingress.yaml" />
+    <Row last>
+      <p slot="docs">Ingress usa a API <code>networking.k8s.io/v1</code>. O <code>ingressClassName</code> é obrigatório no Kubernetes 1.18+. Rotas correspondem host e path a Services backend.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-app
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-app
+                port:
+                  number: 80
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="ingress-paths.yaml" />
+    <Row last>
+      <p slot="docs">Tipos de path: <code>Prefix</code> corresponde prefixos de path (/api corresponde /api/users), <code>Exact</code> corresponde exatamente. A ordem importa - paths mais específicos devem vir primeiro.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /users/admin
+            pathType: Exact
+            backend:
+              service:
+                name: admin-api
+                port:
+                  number: 80
+          - path: /users
+            pathType: Prefix
+            backend:
+              service:
+                name: users-api
+                port:
+                  number: 80
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="ingress-multihost.yaml" />
+    <Row last>
+      <p slot="docs">Múltiplos hosts roteiam tráfego para diferentes Services. Útil para microservices com domínios separados ou aplicações multi-tenant. Hosts wildcard (<code>*.example.com</code>) são suportados por alguns controllers.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-service
+                port:
+                  number: 80
+    - host: admin.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: admin-service
+                port:
+                  number: 80
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="ingress-tls.yaml" />
+    <Row last>
+      <p slot="docs">TLS termina no Ingress. Crie um Secret <code>kubernetes.io/tls</code> com cert e key. cert-manager automatiza certificados Let's Encrypt.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  tls:
+    - hosts:
+        - app.example.com
+        - api.example.com
+      secretName: example-tls-cert
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-app
+                port:
+                  number: 80
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="ingress-default-backend.yaml" />
+    <Row last>
+      <p slot="docs">Default backend lida com requisições não correspondidas. Sem ele, requisições não correspondidas retornam 404 do controller. Útil para páginas de erro customizadas ou roteamento catch-all.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  defaultBackend:
+    service:
+      name: default-backend
+      port:
+        number: 80
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-service
+                port:
+                  number: 80
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="ingress-annotations.yaml" />
+    <Row last>
+      <p slot="docs">Annotations configuram comportamento específico do controller: rate limiting, rewrites, timeouts, autenticação. Cada controller tem opções diferentes - verifique a documentação do seu controller.</p>
+      <Fragment slot="code">
+```yaml
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="ingress-canary.yaml" />
+    <Row last>
+      <p slot="docs">Deploys canary roteiam uma porcentagem do tráfego para uma nova versão. nginx-ingress suporta roteamento baseado em peso e header. Este exemplo roteia 10% do tráfego para o service canary.</p>
+      <Fragment slot="code">
+```yaml
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "10"
+spec:
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-app-canary
+                port:
+                  number: 80
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get ingress my-app" />
+    <Row last terminal>
+      <p slot="docs">Debug problemas de Ingress: verifique logs do controller, verifique endpoints do Service, teste resolução DNS, confirme que secrets TLS existem. O controller cria o load balancer/proxy real.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get ingress my-app
+NAME     CLASS   HOSTS             ADDRESS        PORTS     AGE
+my-app   nginx   app.example.com   34.123.45.67   80, 443   5m
+
+$ kubectl describe ingress my-app
+Rules:
+  Host             Path  Backends
+  ----             ----  --------
+  app.example.com  /     my-app:80 (10.244.1.5:8080,10.244.2.3:8080)
+
+$ kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx
+10.0.0.1 - - "GET / HTTP/1.1" 200 612
+
+$ kubectl get endpoints my-app
+NAME     ENDPOINTS                         AGE
+my-app   10.244.1.5:8080,10.244.2.3:8080   10m
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
