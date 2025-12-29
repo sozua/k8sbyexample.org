@@ -1,0 +1,44 @@
+export const translations = {
+  en: {
+    title: 'Kubernetes by Example',
+    siteName: 'K8s by Example',
+    intro1: 'orchestrates containerized applications across clusters of machines. It handles deployment, scaling, and self-healing automatically.',
+    intro2: 'teaches through annotated YAML manifests. Each example demonstrates a production pattern you can apply immediately.',
+    footer: 'Heavily inspired by',
+    modules: {
+      architecture: 'Architecture',
+      fundamentals: 'Fundamentals',
+      configuration: 'Configuration',
+      networking: 'Networking',
+      lifecycle: 'Workload Lifecycle',
+      scaling: 'Scaling & Scheduling',
+      security: 'Security',
+      advanced: 'Advanced',
+      storage: 'Storage',
+      patterns: 'Multi-Container Patterns',
+      observability: 'Observability',
+    },
+  },
+  'pt-br': {
+    title: 'Kubernetes em Exemplos',
+    siteName: 'K8s em Exemplos',
+    intro1: 'orquestra aplicações containerizadas em clusters de máquinas. Ele gerencia deploy, escalabilidade e auto-recuperação automaticamente.',
+    intro2: 'ensina através de manifests YAML anotados. Cada exemplo demonstra um padrão de produção que você pode aplicar imediatamente.',
+    footer: 'Fortemente inspirado em',
+    modules: {
+      architecture: 'Arquitetura',
+      fundamentals: 'Fundamentos',
+      configuration: 'Configuração',
+      networking: 'Rede',
+      lifecycle: 'Ciclo de Vida',
+      scaling: 'Escala & Agendamento',
+      security: 'Segurança',
+      advanced: 'Avançado',
+      storage: 'Armazenamento',
+      patterns: 'Padrões Multi-Container',
+      observability: 'Observabilidade',
+    },
+  },
+} as const;
+
+export type Lang = keyof typeof translations;
