@@ -1,0 +1,153 @@
+---
+title: "Padrões de Logging"
+description: "Melhores práticas para logging de aplicações em Kubernetes"
+order: 56
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Kubernetes captura stdout/stderr de containers e disponibiliza logs via kubectl. Para produção, envie logs para um sistema centralizado (Elasticsearch, Loki, CloudWatch). Três padrões: agente em nível de nó (DaemonSet), sidecar streaming, sidecar com agente. Use logs JSON estruturados para facilitar consultas.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="logging-stdout.yaml" />
+    <Row last>
+      <p slot="docs">Abordagem mais simples: escreva logs para stdout/stderr. Kubernetes os captura automaticamente. Use formato JSON para logs estruturados fáceis de parsear e consultar.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: json-logger
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      env:
+        - name: LOG_FORMAT
+          value: "json"
+        - name: LOG_LEVEL
+          value: "info"
+# App loga JSON para stdout:
+# {"ts":"2024-01-15T10:30:00Z","level":"info",
+#  "msg":"Request processed","path":"/api/users"}
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="logging-node-agent.yaml" />
+    <Row last>
+      <p slot="docs">Agente de logging em nível de nó (DaemonSet) coleta logs de todos os containers em cada nó. Lê de <code>/var/log/containers</code>. Mais eficiente: um agente por nó ao invés de por Pod.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: logging
+spec:
+  selector:
+    matchLabels:
+      app: fluent-bit
+  template:
+    metadata:
+      labels:
+        app: fluent-bit
+    spec:
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: fluent-bit
+          image: fluent/fluent-bit:2.2
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: containers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: containers
+          hostPath:
+            path: /var/lib/docker/containers
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="logging-sidecar.yaml" />
+    <Row last>
+      <p slot="docs">Sidecar streaming: app escreve logs em arquivos; sidecar monitora arquivos e transmite para stdout. Útil quando app não pode escrever para stdout (apps legados).</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-log-streamer
+spec:
+  containers:
+    - name: legacy-app
+      image: legacy-app:v1
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+    - name: log-streamer
+      image: busybox:1.36
+      args:
+        - /bin/sh
+        - -c
+        - tail -F /var/log/app/*.log
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+          readOnly: true
+  volumes:
+    - name: logs
+      emptyDir: {}
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl logs" />
+    <Row last terminal>
+      <p slot="docs">Acesse logs de containers com kubectl. Use <code>-f</code> para seguir, <code>-c</code> para selecionar container, <code>--previous</code> para containers crashados, <code>--since</code> para intervalo de tempo.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl logs json-logger
+{"ts":"2024-01-15T10:30:00Z","level":"info","msg":"Started"}
+
+$ kubectl logs json-logger -f
+# Seguir logs em tempo real
+
+$ kubectl logs json-logger --previous
+# Logs da instância anterior do container
+
+$ kubectl logs json-logger --since=1h
+# Última hora de logs
+
+$ kubectl logs -l app=api-server --all-containers
+# Todos os Pods correspondendo ao label
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

@@ -1,0 +1,280 @@
+---
+title: "Rastreamento Distribuído"
+description: "Rastreie requisições através de microsserviços com OpenTelemetry e propagação de traces"
+order: 57
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Rastreamento distribuído segue requisições enquanto fluem através de microsserviços. Cada serviço adiciona spans a um trace, mostrando timing e relacionamentos. Baseado no paper Dapper do Google, ferramentas como Jaeger e Zipkin coletam traces. Use para: debugging de latência, entender dependências, encontrar gargalos.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl apply -f jaeger" />
+    <Row last terminal>
+      <p slot="docs">Quick start: faça deploy do Jaeger para coleta e visualização de traces. Para produção, use o Jaeger Operator ou chart Helm com storage persistente. A imagem all-in-one é adequada para desenvolvimento.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl apply -n tracing --create-namespace -f https://github.com/jaegertracing/jaeger-kubernetes/raw/main/all-in-one/jaeger-all-in-one-template.yml
+namespace/tracing created
+deployment.apps/jaeger created
+service/jaeger-query created
+service/jaeger-collector created
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="otel-sidecar.yaml" />
+    <Row last>
+      <p slot="docs">O sidecar OpenTelemetry Collector recebe traces da aplicação e exporta para backends (Jaeger, Zipkin, Tempo). Apps enviam traces para localhost; o sidecar lida com batching, retry e exportação.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: traced-app
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://localhost:4317"
+        - name: OTEL_SERVICE_NAME
+          value: "my-app"
+    - name: otel-collector
+      image: otel/opentelemetry-collector:0.91.0
+      args: ["--config=/etc/otel/config.yaml"]
+      ports:
+        - containerPort: 4317
+        - containerPort: 4318
+      volumeMounts:
+        - name: otel-config
+          mountPath: /etc/otel
+  volumes:
+    - name: otel-config
+      configMap:
+        name: otel-collector-config
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="otel-collector-config.yaml" />
+    <Row last>
+      <p slot="docs">Config do Collector define receivers (como traces chegam), processors (batching, filtragem), e exporters (para onde traces vão). Esta config recebe traces OTLP e exporta para Jaeger.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      batch:
+        timeout: 1s
+        send_batch_size: 1024
+    exporters:
+      otlp:
+        endpoint: "jaeger-collector.tracing.svc:4317"
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="trace-propagation.yaml" />
+    <Row last>
+      <p slot="docs">Propagação de contexto de trace passa IDs de trace entre serviços via headers HTTP. O padrão W3C Trace Context usa headers <code>traceparent</code> e <code>tracestate</code>. Configure apps para extrair contexto de entrada e injetar em requisições de saída.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: order
+          image: order-service:v1
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: "order-service"
+            - name: OTEL_PROPAGATORS
+              value: "tracecontext,baggage"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.tracing.svc:4317"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.name=$(POD_NAME)"
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="jaeger-deployment.yaml" />
+    <Row last>
+      <p slot="docs">Deploy Jaeger all-in-one para desenvolvimento. Inclui collector, query UI e storage em memória. Para produção, use componentes separados com storage persistente (Elasticsearch, Cassandra).</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: tracing
+spec:
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: jaegertracing/all-in-one:1.53
+          ports:
+            - containerPort: 16686
+              name: ui
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
+          env:
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-collector
+  namespace: tracing
+spec:
+  selector:
+    app: jaeger
+  ports:
+    - port: 4317
+      name: otlp-grpc
+    - port: 16686
+      name: ui
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="sampling-config.yaml" />
+    <Row last>
+      <p slot="docs">Sampling reduz volume de traces em sistemas de alto tráfego. Head-based sampling decide no início do trace; tail-based faz amostragem após ver o trace completo. Configure ratio (0.1 = 10%) ou use sampling adaptativo baseado no tráfego.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-sampling-config
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+    processors:
+      batch: {}
+      probabilistic_sampler:
+        sampling_percentage: 10
+      tail_sampling:
+        decision_wait: 10s
+        policies:
+          - name: errors
+            type: status_code
+            status_code: {status_codes: [ERROR]}
+          - name: slow-traces
+            type: latency
+            latency: {threshold_ms: 1000}
+    exporters:
+      otlp:
+        endpoint: "jaeger-collector:4317"
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [tail_sampling, batch]
+          exporters: [otlp]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl port-forward svc/jaeger-collector 16686:16686" />
+    <Row last terminal>
+      <p slot="docs">Acesse a UI do Jaeger para buscar traces por serviço, operação, tags ou duração. Visualize timelines de trace mostrando relacionamentos de spans, identifique serviços lentos e analise caminhos de erro.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl port-forward svc/jaeger-collector 16686:16686 -n tracing &
+
+$ curl localhost:16686/api/services | jq '.data'
+["order-service", "payment-service", "inventory-service"]
+
+$ curl "localhost:16686/api/traces?service=order-service&limit=10" | jq '.data[0]'
+{
+  "traceID": "abc123...",
+  "spans": [
+    {"operationName": "POST /orders", "duration": 245000},
+    {"operationName": "check-inventory", "duration": 89000},
+    {"operationName": "process-payment", "duration": 156000}
+  ]
+}
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
