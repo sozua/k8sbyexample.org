@@ -1,0 +1,193 @@
+---
+title: "Leader Election"
+description: "Coordene workloads distribuídos com eleição de líder baseada em Lease do Kubernetes"
+order: 40
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Eleição de líder garante que apenas uma instância de uma aplicação distribuída execute certas tarefas por vez. Kubernetes fornece eleição de líder via objetos Lease. O líder mantém o lease; se falhar, outra instância o adquire. Use para: workers singleton, tarefas agendadas, padrões de controller, evitar processamento duplicado.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="leader-election-deployment.yaml" />
+    <Row>
+      <p slot="docs">Faça deploy de múltiplas réplicas onde apenas uma é o líder ativo. O container sidecar lida com eleição de líder usando a API do Kubernetes. A app principal verifica um arquivo local ou endpoint para determinar se é o líder.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      serviceAccountName: leader-election
+      containers:
+        - name: worker
+          image: my-worker:v1
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">O sidecar leader-election usa a imagem <code>leader-elector</code>. Ele cria um objeto Lease e continuamente o renova. Quando este Pod é o líder, expõe esse status via endpoint local ou arquivo.</p>
+      <Fragment slot="code">
+```yaml
+        - name: leader-elector
+          image: registry.k8s.io/leader-elector:0.5
+          args:
+            - --election=worker-election
+            - --http=0.0.0.0:4040
+          ports:
+            - containerPort: 4040
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="leader-election-rbac.yaml" />
+    <Row last>
+      <p slot="docs">Eleição de líder requer permissões para criar e atualizar objetos Lease. A ServiceAccount precisa de <code>get</code>, <code>create</code> e <code>update</code> em leases no grupo de API <code>coordination.k8s.io</code>.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: leader-election
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leader-election
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "create", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: leader-election
+subjects:
+  - kind: ServiceAccount
+    name: leader-election
+roleRef:
+  kind: Role
+  name: leader-election
+  apiGroup: rbac.authorization.k8s.io
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="lease.yaml" />
+    <Row last>
+      <p slot="docs">Um objeto Lease armazena estado de eleição de líder. <code>holderIdentity</code> é o líder atual. <code>leaseDurationSeconds</code> é quanto tempo o lease é válido. <code>renewTime</code> é quando o líder renovou por último. Se o líder falhar em renovar, outro Pod pode adquirir.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: worker-election
+spec:
+  holderIdentity: worker-7d8f9b6c4d-abc12
+  leaseDurationSeconds: 15
+  acquireTime: "2024-01-15T10:30:00Z"
+  renewTime: "2024-01-15T10:31:45Z"
+  leaseTransitions: 3
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="leader-election-native.yaml" />
+    <Row last>
+      <p slot="docs">Muitas aplicações implementam eleição de líder nativamente usando client-go ou bibliotecas similares. Configure nome do lease, namespace, duração e callbacks para quando liderança é adquirida ou perdida.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller
+spec:
+  replicas: 2
+  template:
+    spec:
+      serviceAccountName: leader-election
+      containers:
+        - name: controller
+          image: my-controller:v1
+          args:
+            - --leader-elect=true
+            - --leader-election-id=controller-leader
+            - --leader-election-namespace=$(POD_NAMESPACE)
+            - --leader-election-lease-duration=15s
+            - --leader-election-renew-deadline=10s
+            - --leader-election-retry-period=2s
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get leases" />
+    <Row last terminal>
+      <p slot="docs">Inspecione leases para ver líderes atuais. A coluna <code>HOLDER</code> mostra qual Pod mantém o lease. Observe transições de liderança durante falhas ou deployments.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get leases
+NAME               HOLDER                      AGE
+worker-election    worker-7d8f9b6c4d-abc12     1h
+controller-leader  controller-5f6g7h8i9j-xyz   30m
+
+$ kubectl describe lease worker-election
+Name:         worker-election
+Holder:       worker-7d8f9b6c4d-abc12
+Acquire Time: 2024-01-15T10:30:00Z
+Renew Time:   2024-01-15T11:31:45Z
+Transitions:  3
+
+$ kubectl get pods -l app=worker
+NAME                      READY   STATUS    ROLE
+worker-7d8f9b6c4d-abc12   2/2     Running   leader
+worker-7d8f9b6c4d-def34   2/2     Running   standby
+worker-7d8f9b6c4d-ghi56   2/2     Running   standby
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

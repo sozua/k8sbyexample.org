@@ -1,0 +1,170 @@
+---
+title: "DaemonSets"
+description: "Execute um Pod em cada node"
+order: 33
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>DaemonSets garantem que um Pod execute em cada node (ou nodes selecionados). Quando nodes entram, eles recebem um Pod. Quando nodes saem, Pod é coletado como lixo. Use para: coletores de log, agentes de monitoramento, plugins de rede.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="daemonset.yaml" />
+    <Row last>
+      <p slot="docs">DaemonSet garante um Pod por node. Sem campo <code>replicas</code>. Contagem é determinada pela quantidade de nodes. Selector e labels do template devem corresponder.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluentd
+spec:
+  selector:
+    matchLabels:
+      app: fluentd
+  template:
+    metadata:
+      labels:
+        app: fluentd
+    spec:
+      containers:
+        - name: fluentd
+          image: fluent/fluentd:v1.16
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="daemonset-host.yaml" />
+    <Row last>
+      <p slot="docs">Acesse recursos do host com volumes hostPath e hostNetwork. Comum para coleta de logs, monitoramento de node e plugins de rede. Cuidado: hostPath quebra isolamento do container.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: fluentd
+          image: fluent/fluentd:v1.16
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+            type: Directory
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="daemonset-tolerations.yaml" />
+    <Row last>
+      <p slot="docs">Tolerations permitem DaemonSets executar em nodes com taints. Primeira toleration: execute em nodes control plane. Segunda toleration: tolere todos os taints (execute em todo lugar). Ou use nodeSelector para mirar nodes específicos.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  template:
+    spec:
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - operator: Exists
+      nodeSelector:
+        node-type: worker
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="daemonset-update.yaml" />
+    <Row last>
+      <p slot="docs">Estratégias de update: <code>RollingUpdate</code> (padrão) substitui Pods um por vez (<code>maxUnavailable: 1</code>). <code>maxSurge: 0</code> porque DaemonSets não podem fazer surge (1 por node). <code>OnDelete</code> só atualiza Pods quando deletados manualmente.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="daemonset-affinity.yaml" />
+    <Row last>
+      <p slot="docs">Pods de DaemonSet são agendados pelo controller do DaemonSet, não pelo scheduler. Node affinity ainda funciona para selecionar quais nodes recebem Pods. Eles também ignoram PodDisruptionBudgets durante updates.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values: [linux]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get daemonset" />
+    <Row last terminal>
+      <p slot="docs">Debug DaemonSets verificando contagem desired vs ready e inspecionando Pods por node. Problemas comuns: taints prevenindo agendamento, restrições de recursos, falhas de pull de imagem.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get daemonset
+NAME      DESIRED   CURRENT   READY   UP-TO-DATE   AGE
+fluentd   3         3         3       3            5m
+
+$ kubectl get pods -l app=fluentd -o wide
+NAME            READY   STATUS    NODE
+fluentd-abc12   1/1     Running   node-1
+fluentd-def34   1/1     Running   node-2
+fluentd-ghi56   1/1     Running   node-3
+
+$ kubectl describe daemonset fluentd
+
+$ kubectl describe node problem-node | grep -A5 Taints
+Taints:  node-role.kubernetes.io/control-plane:NoSchedule
+
+$ kubectl rollout status daemonset/fluentd
+daemon set "fluentd" successfully rolled out
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

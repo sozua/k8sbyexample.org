@@ -1,0 +1,209 @@
+---
+title: "StatefulSets"
+description: "Gerencie aplicações stateful com identidades estáveis"
+order: 32
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>StatefulSets fornecem identidades estáveis de Pod e storage persistente. Diferente de Deployments, Pods não são intercambiáveis. Eles mantêm o mesmo nome, DNS e storage entre restarts. Use para: bancos de dados, caches, Kafka.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="statefulset.yaml" />
+    <Row last>
+      <p slot="docs">StatefulSet requer <code>serviceName</code> apontando para um Service headless. Pods recebem nomes ordinais: postgres-0, postgres-1, postgres-2.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres
+  replicas: 3
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="headless-service.yaml" />
+    <Row last>
+      <p slot="docs">Service Headless (<code>clusterIP: None</code>) fornece DNS estável para cada Pod. Entradas DNS: <code>postgres-0.postgres.default.svc.cluster.local</code>, <code>postgres-1.postgres.default.svc.cluster.local</code>. É assim que Pods descobrem uns aos outros para clustering.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="statefulset-storage.yaml" />
+    <Row last>
+      <p slot="docs">Cada Pod recebe um volume persistente via <code>volumeClaimTemplates</code>. PVCs são nomeados <code>nomevolume-nomepod</code>: data-postgres-0, data-postgres-1, data-postgres-2. Volumes sobrevivem restarts e reagendamento de Pod.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: gp3
+        resources:
+          requests:
+            storage: 10Gi
+  template:
+    spec:
+      containers:
+        - name: postgres
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="statefulset-policy.yaml" />
+    <Row last>
+      <p slot="docs">Políticas de gerenciamento de Pod controlam ordem de inicialização. <code>OrderedReady</code> (padrão) inicia Pods sequencialmente (postgres-0 → postgres-1 → postgres-2) e para em ordem reversa. <code>Parallel</code> inicia/para todos simultaneamente.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  podManagementPolicy: OrderedReady
+  replicas: 3
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="statefulset-update.yaml" />
+    <Row last>
+      <p slot="docs">Estratégias de update: <code>RollingUpdate</code> (padrão) atualiza Pods em ordem reversa (N-1 → 0). <code>OnDelete</code> só atualiza quando Pod é deletado manualmente. <code>partition: 1</code> significa postgres-0 fica na versão antiga enquanto postgres-1, postgres-2 recebem nova versão. Defina partition: 0 para completar rollout.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="statefulset-retention.yaml" />
+    <Row last>
+      <p slot="docs">PVCs persistem após deleção do StatefulSet por padrão. <code>whenDeleted: Delete</code> deleta PVCs quando StatefulSet é deletado. <code>whenScaled: Retain</code> (padrão) mantém PVCs no scale down. Delete manualmente para recuperar storage.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Delete
+    whenScaled: Retain
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl scale statefulset postgres --replicas=5" />
+    <Row last terminal>
+      <p slot="docs">Scale up cria postgres-3, postgres-4 em ordem. Scale down remove postgres-4, postgres-3 em ordem reversa e espera cada um terminar. PVCs NÃO são deletados no scale down: data-postgres-3 e data-postgres-4 ainda existem.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl scale statefulset postgres --replicas=5
+statefulset.apps/postgres scaled
+
+$ kubectl scale statefulset postgres --replicas=3
+statefulset.apps/postgres scaled
+
+$ kubectl get pvc
+NAME              STATUS   VOLUME       CAPACITY
+data-postgres-0   Bound    pv-abc123    10Gi
+data-postgres-1   Bound    pv-def456    10Gi
+data-postgres-2   Bound    pv-ghi789    10Gi
+data-postgres-3   Bound    pv-jkl012    10Gi
+data-postgres-4   Bound    pv-mno345    10Gi
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods -l app=postgres -w" />
+    <Row last terminal>
+      <p slot="docs">Debug StatefulSets verificando ordenação de Pod, binding de PVC e DNS do Service headless. Problemas comuns: PVC preso pendente (sem storage), Pod preso inicializando (Pod anterior não está ready).</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -l app=postgres -w
+NAME         READY   STATUS    AGE
+postgres-0   1/1     Running   5m
+postgres-1   1/1     Running   4m
+postgres-2   1/1     Running   3m
+
+$ kubectl get pvc -l app=postgres
+NAME              STATUS   VOLUME
+data-postgres-0   Bound    pvc-abc123
+data-postgres-1   Bound    pvc-def456
+data-postgres-2   Bound    pvc-ghi789
+
+$ kubectl run -it --rm debug --image=busybox -- \
+    nslookup postgres-0.postgres.default.svc.cluster.local
+Name:      postgres-0.postgres.default.svc.cluster.local
+Address 1: 10.244.0.15
+
+$ kubectl describe statefulset postgres
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
