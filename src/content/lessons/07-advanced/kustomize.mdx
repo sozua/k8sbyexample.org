@@ -1,0 +1,136 @@
+---
+title: "Kustomize Basics"
+description: "Template-free customization of Kubernetes manifests"
+order: 30
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Kustomize customizes YAML without templates. Compose resources, add labels, and change images, all declaratively. Built into kubectl since v1.14.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="kustomization.yaml" />
+    <Row last>
+      <p slot="docs">Kustomization file lists resources to include. All referenced resources are combined into a single output. Can reference local files or remote URLs.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - configmap.yaml
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="kustomization-labels.yaml" />
+    <Row last>
+      <p slot="docs">Add common labels and annotations to all resources. Great for consistent tagging across environments. Labels are also added to selectors automatically.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+commonLabels:
+  app.kubernetes.io/name: my-app
+  app.kubernetes.io/managed-by: kustomize
+
+commonAnnotations:
+  owner: platform-team
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="kustomization-images.yaml" />
+    <Row last>
+      <p slot="docs">Change namespace for all resources. Override image tags without editing manifests. <code>newName</code> changes registry, <code>newTag</code> changes version.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: production
+
+resources:
+  - deployment.yaml
+
+images:
+  - name: my-app
+    newTag: v1.2.3
+  - name: nginx
+    newName: my-registry/nginx
+    newTag: "1.25"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="kustomization-generators.yaml" />
+    <Row last>
+      <p slot="docs">Generate ConfigMaps and Secrets from files or literals. Kustomize adds a hash suffix for automatic rollouts when content changes.</p>
+      <Fragment slot="code">
+```yaml
+configMapGenerator:
+  - name: app-config
+    literals:
+      - LOG_LEVEL=info
+      - DEBUG=false
+    files:
+      - config.json
+
+secretGenerator:
+  - name: app-secrets
+    literals:
+      - API_KEY=secret123
+    files:
+      - credentials.json
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl apply -k ./base" />
+    <Row last terminal>
+      <p slot="docs">Apply with kubectl or preview changes. <code>kubectl kustomize</code> outputs rendered YAML to stdout. <code>-k</code> flag tells kubectl to process kustomization. <code>kubectl diff -k</code> shows what would change.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl kustomize ./base
+
+$ kubectl apply -k ./base
+configmap/app-config-abc123 created
+deployment.apps/my-app created
+service/my-app created
+
+$ kubectl diff -k ./base
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
