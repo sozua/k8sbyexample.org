@@ -120,6 +120,10 @@ Contributions are welcome! Whether it's fixing a typo, improving explanations, o
 
 Inspired by [Go by Example](https://gobyexample.com), bringing the same learn-by-example approach to Kubernetes.
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=sozua/k8sbyexample.org&type=Date)](https://star-history.com/#sozua/k8sbyexample.org&Date)
+
 ## License
 
 MIT
