@@ -19,7 +19,7 @@ Kubernetes by Example is an interactive learning resource that teaches Kubernete
 ## Topics
 
 - Architecture
-  - [Overview](https://k8sbyexample.org/architecture-overview)
+  - [Overview](https://k8sbyexample.org/overview)
   - [Control Plane](https://k8sbyexample.org/control-plane)
   - [Node Components](https://k8sbyexample.org/node-components)
 
@@ -29,12 +29,12 @@ Kubernetes by Example is an interactive learning resource that teaches Kubernete
   - [Labels](https://k8sbyexample.org/labels)
   - [Deployments](https://k8sbyexample.org/deployments)
   - [ReplicaSets](https://k8sbyexample.org/replicasets)
-  - [Services](https://k8sbyexample.org/service-clusterip)
+  - [Services](https://k8sbyexample.org/services)
 
 - Configuration
   - [ConfigMaps](https://k8sbyexample.org/configmaps)
   - [Secrets](https://k8sbyexample.org/secrets)
-  - [Environment Variables](https://k8sbyexample.org/environment-variables)
+  - [Environment Variables](https://k8sbyexample.org/env-variables)
 
 - Networking
   - [Ingress](https://k8sbyexample.org/ingress)
@@ -43,7 +43,7 @@ Kubernetes by Example is an interactive learning resource that teaches Kubernete
 
 - Workload Lifecycle
   - [Init Containers](https://k8sbyexample.org/init-containers)
-  - [Probes](https://k8sbyexample.org/liveness-probe)
+  - [Probes](https://k8sbyexample.org/liveness-probes)
   - [Rolling Updates](https://k8sbyexample.org/rolling-updates)
   - [Graceful Shutdown](https://k8sbyexample.org/graceful-shutdown)
 
