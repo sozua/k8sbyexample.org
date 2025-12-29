@@ -1,0 +1,212 @@
+---
+title: "DNS & Service Discovery"
+description: "How Pods find each other by name"
+order: 14
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Kubernetes runs CoreDNS for internal name resolution. Every Service gets a DNS A record automatically. Pods resolve Service names to ClusterIPs without hardcoding addresses.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="service.yaml" />
+    <Row last>
+      <p slot="docs">Services automatically get DNS records. This Service gets DNS: <code>my-app.production.svc.cluster.local</code> with an A record pointing to the ClusterIP.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app
+  namespace: production
+spec:
+  ports:
+    - port: 80
+  selector:
+    app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="curl http://my-app" />
+    <Row last terminal>
+      <p slot="docs">DNS resolution from shortest to FQDN. Same namespace: just service name. Cross-namespace: <code>service.namespace</code>. With svc suffix: <code>service.namespace.svc</code>. Full FQDN (rarely needed): <code>service.namespace.svc.cluster.local</code>.</p>
+      <Fragment slot="code">
+```bash
+$ curl http://my-app
+Hello from my-app!
+
+$ curl http://my-app.other-namespace
+Hello from my-app!
+
+$ curl http://my-app.other-namespace.svc
+
+$ curl http://my-app.other-namespace.svc.cluster.local
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="nslookup my-app.default.svc.cluster.local" />
+    <Row last terminal>
+      <p slot="docs">Services also get SRV records for named ports. SRV records contain port information, useful for dynamic port discovery.</p>
+      <Fragment slot="code">
+```bash
+$ nslookup my-app.default.svc.cluster.local
+Server:    10.96.0.10
+Address:   10.96.0.10#53
+
+Name:      my-app.default.svc.cluster.local
+Address:   10.96.0.100
+
+$ nslookup -type=SRV _http._tcp.my-app.default.svc.cluster.local
+_http._tcp.my-app.default.svc.cluster.local   SRV 0 100 80 my-app.default.svc.cluster.local
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="headless-service.yaml" />
+    <Row last>
+      <p slot="docs">Headless Services (<code>clusterIP: None</code>) return Pod IPs directly instead of a ClusterIP. DNS returns all matching Pod IPs. Essential for StatefulSets and client-side load balancing.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-db
+spec:
+  clusterIP: None
+  ports:
+    - port: 5432
+  selector:
+    app: postgres
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="nslookup my-db-0.my-db" />
+    <Row last terminal>
+      <p slot="docs">StatefulSet Pods get stable, predictable DNS names via headless Services. Each Pod gets its own A record: <code>pod-name.service.namespace.svc.cluster.local</code>.</p>
+      <Fragment slot="code">
+```bash
+$ nslookup my-db-0.my-db.default.svc.cluster.local
+Address: 10.244.1.5
+
+$ nslookup my-db-1.my-db.default.svc.cluster.local
+Address: 10.244.2.8
+
+$ nslookup my-db-2.my-db.default.svc.cluster.local
+Address: 10.244.3.12
+
+$ psql -h my-db-0.my-db.default.svc.cluster.local
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-dns-config.yaml" />
+    <Row last>
+      <p slot="docs">Pod DNS policy controls how Pods resolve names. <code>ClusterFirst</code> is default. Use <code>None</code> with custom <code>dnsConfig</code> for special cases. Options: Default, ClusterFirst, ClusterFirstWithHostNet, None.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  dnsPolicy: ClusterFirst
+  dnsConfig:
+    nameservers:
+      - 8.8.8.8
+    searches:
+      - my-namespace.svc.cluster.local
+    options:
+      - name: ndots
+        value: "5"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get configmap coredns -n kube-system" />
+    <Row last terminal>
+      <p slot="docs">CoreDNS configuration is in a ConfigMap in kube-system. Customize for external DNS forwarding, custom domains, or caching. Pods get <code>/etc/resolv.conf</code> configured by kubelet.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get configmap coredns -n kube-system -o yaml
+apiVersion: v1
+kind: ConfigMap
+data:
+  Corefile: |
+    .:53 {
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+           pods insecure
+           fallthrough in-addr.arpa ip6.arpa
+        }
+        forward . /etc/resolv.conf
+        cache 30
+    }
+
+$ kubectl exec my-pod -- cat /etc/resolv.conf
+nameserver 10.96.0.10
+search default.svc.cluster.local svc.cluster.local cluster.local
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl run dns-test --rm -it --image=busybox:1.28 -- sh" />
+    <Row last terminal>
+      <p slot="docs">Debug DNS issues by checking CoreDNS pods, testing resolution from within the cluster, and verifying Service endpoints exist. Common issue: ndots setting causes external lookups to fail.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl run dns-test --rm -it --image=busybox:1.28 -- sh
+/ # nslookup my-app
+Server:    10.96.0.10
+Address 1: 10.96.0.10 kube-dns.kube-system.svc.cluster.local
+Name:      my-app
+Address 1: 10.96.0.100
+
+/ # nslookup kubernetes.default
+Name:      kubernetes.default
+Address 1: 10.96.0.1
+
+$ kubectl logs -n kube-system -l k8s-app=kube-dns
+[INFO] 10.244.0.5:53842 - 12345 "A IN my-app.default.svc.cluster.local."
+
+$ kubectl get pods -n kube-system -l k8s-app=kube-dns
+NAME                       READY   STATUS    AGE
+coredns-5644d7b6d9-abc12   1/1     Running   10d
+coredns-5644d7b6d9-def34   1/1     Running   10d
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
