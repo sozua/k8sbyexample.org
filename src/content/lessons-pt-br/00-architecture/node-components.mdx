@@ -1,0 +1,297 @@
+---
+title: "Componentes do Node"
+description: "Internos do worker node: kubelet, kube-proxy, container runtime"
+order: 2
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Worker nodes executam suas cargas de trabalho. Cada node possui: kubelet (ciclo de vida do Pod), kube-proxy (rede), e container runtime (executa containers). Os nodes se registram no control plane e recebem trabalho via API Server.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="node-architecture.txt" />
+    <Row last>
+      <p slot="docs">O kubelet gerencia Pods, o kube-proxy lida com regras de rede, e o container runtime executa os containers.</p>
+      <Fragment slot="code">
+```
+┌─────────────────────────────────────────────────────┐
+│                    Worker Node                      │
+│  ┌──────────────────────────────────────────────┐   │
+│  │                   kubelet                    │   │
+│  └──────────────────────────────────────────────┘   │
+│  ┌─────────────────┐  ┌─────────────────────────┐   │
+│  │   kube-proxy    │  │   Container Runtime     │   │
+│  └─────────────────┘  └─────────────────────────┘   │
+│  ┌──────────────────────────────────────────────┐   │
+│  │              Pods (containers)               │   │
+│  └──────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="systemctl status kubelet" />
+    <Row last terminal>
+      <p slot="docs">O kubelet é o agente do node. Ele observa Pods atribuídos ao seu node, inicia containers, executa probes e reporta status. Ele não gerencia containers não-Kubernetes.</p>
+      <Fragment slot="code">
+```bash
+$ systemctl status kubelet
+● kubelet.service - kubelet: The Kubernetes Node Agent
+   Loaded: loaded (/lib/systemd/system/kubelet.service; enabled)
+   Active: active (running) since Mon 2024-01-15 10:00:00 UTC
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="journalctl -u kubelet -f" />
+    <Row last terminal>
+      <p slot="docs">Visualize logs do kubelet para troubleshooting. O arquivo de configuração em <code>/var/lib/kubelet/config.yaml</code> contém as configurações de runtime.</p>
+      <Fragment slot="code">
+```bash
+$ journalctl -u kubelet -f
+Jan 15 10:30:00 node-1 kubelet: I0115 10:30:00 node.go:123] Node node-1 ready
+Jan 15 10:30:05 node-1 kubelet: I0115 10:30:05 kubelet.go:456] SyncLoop ADD
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get nodes -o wide" />
+    <Row last terminal>
+      <p slot="docs">O kubelet se comunica com o container runtime via CRI (Container Runtime Interface). containerd e CRI-O são os principais runtimes de produção.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get nodes -o wide
+NAME     STATUS   VERSION   CONTAINER-RUNTIME
+node-1   Ready    v1.29.0   containerd://1.7.0
+node-2   Ready    v1.29.0   containerd://1.7.0
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="crictl ps" />
+    <Row last terminal>
+      <p slot="docs">Use <code>crictl</code> para interagir diretamente com o container runtime. Útil para debugar problemas de containers.</p>
+      <Fragment slot="code">
+```bash
+$ crictl ps
+CONTAINER   IMAGE          STATE     NAME
+abc123      nginx:latest   Running   nginx
+def456      redis:7        Running   redis
+
+$ crictl images
+IMAGE                     TAG       SIZE
+docker.io/nginx           latest    142MB
+docker.io/redis           7         130MB
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl logs -n kube-system -l k8s-app=kube-proxy | head -20" />
+    <Row last terminal>
+      <p slot="docs">O kube-proxy implementa a rede de Services. Ele observa Services e Endpoints, então configura regras iptables ou IPVS para rotear tráfego para Pods.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl logs -n kube-system -l k8s-app=kube-proxy | head -10
+I0115 10:00:00 server.go:225] Using iptables Proxier
+I0115 10:00:00 config.go:315] Starting service config controller
+I0115 10:00:00 config.go:224] Starting endpoint slice config controller
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="iptables -t nat -L KUBE-SERVICES -n | head -20" />
+    <Row last terminal>
+      <p slot="docs">O modo padrão é iptables - cria regras NAT para cada Service. O modo IPVS é melhor para clusters grandes com muitos Services.</p>
+      <Fragment slot="code">
+```bash
+$ iptables -t nat -L KUBE-SERVICES -n | head -10
+Chain KUBE-SERVICES (2 references)
+target     prot opt source    destination
+KUBE-SVC-XYZ  tcp  --  0.0.0.0/0  10.96.0.1    /* default/kubernetes:https */
+KUBE-SVC-ABC  tcp  --  0.0.0.0/0  10.96.0.10   /* kube-system/kube-dns:dns */
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe node node-1 | grep -A10 Conditions" />
+    <Row last terminal>
+      <p slot="docs">O status do node é reportado pelo kubelet. Conditions mostram a saúde: Ready, MemoryPressure, DiskPressure, PIDPressure. Todas exceto Ready devem ser False.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe node node-1 | grep -A10 Conditions
+Conditions:
+  Type             Status  Reason
+  ----             ------  ------
+  MemoryPressure   False   KubeletHasSufficientMemory
+  DiskPressure     False   KubeletHasNoDiskPressure
+  PIDPressure      False   KubeletHasSufficientPID
+  Ready            True    KubeletReady
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe node node-1 | grep -A6 Capacity" />
+    <Row last terminal>
+      <p slot="docs">Allocatable mostra recursos disponíveis para Pods após overhead do sistema. Parte da capacidade é reservada para processos do sistema.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe node node-1 | grep -A6 Capacity
+Capacity:
+  cpu:                4
+  memory:             16Gi
+  pods:               110
+Allocatable:
+  cpu:                3800m
+  memory:             15Gi
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get node node-1 --show-labels" />
+    <Row last terminal>
+      <p slot="docs">O registro do node adiciona labels automáticas: hostname, OS, arch, zone. Cloud controllers adicionam labels de instance-type e região.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get node node-1 --show-labels
+NAME     STATUS   LABELS
+node-1   Ready    kubernetes.io/hostname=node-1,
+                  kubernetes.io/os=linux,
+                  kubernetes.io/arch=amd64,
+                  topology.kubernetes.io/zone=us-east-1a
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl cordon node-1" />
+    <Row last terminal>
+      <p slot="docs">Cordon marca um node como não-agendável. Novos Pods não serão alocados nele, mas Pods existentes continuam rodando.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl cordon node-1
+node/node-1 cordoned
+
+$ kubectl get nodes
+NAME     STATUS                     ROLES    AGE
+node-1   Ready,SchedulingDisabled   worker   30d
+node-2   Ready                      worker   30d
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl drain node-1 --ignore-daemonsets --delete-emptydir-data" />
+    <Row last terminal>
+      <p slot="docs">Drain despeja todos os Pods de um node, respeitando PodDisruptionBudgets. Use para manutenção, upgrades ou descomissionamento.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl drain node-1 --ignore-daemonsets --delete-emptydir-data
+node/node-1 already cordoned
+evicting pod default/nginx-abc123
+evicting pod default/redis-xyz456
+pod/nginx-abc123 evicted
+pod/redis-xyz456 evicted
+node/node-1 drained
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl uncordon node-1" />
+    <Row last terminal>
+      <p slot="docs">Uncordon retorna um node ao serviço, permitindo que novos Pods sejam agendados nele.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl uncordon node-1
+node/node-1 uncordoned
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl top node" />
+    <Row last terminal>
+      <p slot="docs">Debugue problemas de nodes verificando uso de recursos, logs do kubelet e status do container runtime.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl top node
+NAME     CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+node-1   250m         6%     4096Mi          25%
+node-2   180m         4%     3584Mi          22%
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl debug node/problem-node -it --image=ubuntu" />
+    <Row last terminal>
+      <p slot="docs">Use <code>kubectl debug</code> para obter um shell em um node para troubleshooting avançado. Isso cria um Pod privilegiado com acesso ao host.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl debug node/problem-node -it --image=ubuntu
+Creating debugging pod node-debugger-problem-node-abc123
+root@problem-node:/# cat /host/var/log/syslog | tail
+root@problem-node:/# exit
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
