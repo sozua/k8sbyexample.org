@@ -1,0 +1,221 @@
+---
+title: "Deployments"
+description: "Declarative updates for Pods and ReplicaSets"
+order: 4
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Deployments manage Pods via ReplicaSets. The hierarchy is: Deployment → ReplicaSet → Pods. Deployments add self-healing, scaling, rolling updates, and rollbacks on top of ReplicaSets.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="deployment.yaml" />
+    <Row>
+      <p slot="docs">Deployments use the <code>apps/v1</code> API. The selector links the Deployment to its Pods.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  labels:
+    app.kubernetes.io/name: my-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: my-app
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">The Pod template defines what each replica looks like. Labels in the template must match the selector.</p>
+      <Fragment slot="code">
+```yaml
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: my-app
+    spec:
+      containers:
+        - name: app
+          image: my-app:v1.2.0
+          ports:
+            - name: http
+              containerPort: 8080
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl delete pod my-app-7d9f8b6c5d-abc12" />
+    <Row last terminal>
+      <p slot="docs">Kubernetes uses reconciliation loops to maintain desired state. Delete a Pod and watch the Deployment recreate it automatically.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl delete pod my-app-7d9f8b6c5d-abc12
+pod "my-app-7d9f8b6c5d-abc12" deleted
+
+$ kubectl get pods
+NAME                      READY   STATUS    AGE
+my-app-7d9f8b6c5d-def34   1/1     Running   5s
+my-app-7d9f8b6c5d-ghi56   1/1     Running   10m
+my-app-7d9f8b6c5d-jkl78   1/1     Running   10m
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl scale deployment my-app --replicas=5" />
+    <Row last terminal>
+      <p slot="docs">Scale up and new Pods are created automatically. Scale down and excess Pods are terminated.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl scale deployment my-app --replicas=5
+deployment.apps/my-app scaled
+
+$ kubectl get deployment my-app
+NAME     READY   UP-TO-DATE   AVAILABLE   AGE
+my-app   5/5     5            5           10m
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="rolling-update-strategy.yaml" />
+    <Row>
+      <p slot="docs">Two update strategies: <code>RollingUpdate</code> (default) gradually replaces Pods; <code>Recreate</code> kills all Pods before creating new ones.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs"><code>minReadySeconds</code> delays marking Pods as ready. <code>revisionHistoryLimit</code> controls how many old ReplicaSets to keep for rollback.</p>
+      <Fragment slot="code">
+```yaml
+  replicas: 3
+  minReadySeconds: 10
+  revisionHistoryLimit: 5
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get rs" />
+    <Row last terminal>
+      <p slot="docs">Rolling updates create a new ReplicaSet and gradually shift Pods. Old ReplicaSets are kept (scaled to 0) for rollbacks.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get rs
+NAME                DESIRED   CURRENT   READY   AGE
+my-app-7d9f8b6c5d   3         3         3       10m
+my-app-5f8d9a7b3c   0         0         0       1h
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl rollout history deployment/my-app" />
+    <Row last terminal>
+      <p slot="docs">Each update creates a new revision in the history. View all revisions with rollout history.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl rollout history deployment/my-app
+deployment.apps/my-app
+REVISION  CHANGE-CAUSE
+1         Initial deployment
+2         kubectl set image deployment/my-app app=my-app:v1.3.0
+3         kubectl set image deployment/my-app app=my-app:v1.4.0
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl set image deployment/my-app app=my-app:v1.3.0" />
+    <Row last terminal>
+      <p slot="docs">Update the image to trigger a rolling update. Watch the status with rollout status.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl set image deployment/my-app app=my-app:v1.3.0
+deployment.apps/my-app image updated
+
+$ kubectl rollout status deployment/my-app
+Waiting for deployment "my-app" rollout to finish: 1 of 3 updated...
+Waiting for deployment "my-app" rollout to finish: 2 of 3 updated...
+deployment "my-app" successfully rolled out
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl rollout undo deployment/my-app" />
+    <Row last terminal>
+      <p slot="docs">Rollbacks are fast because old ReplicaSets still exist. Kubernetes just scales them up and down.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl rollout undo deployment/my-app
+deployment.apps/my-app rolled back
+
+$ kubectl rollout undo deployment/my-app --to-revision=2
+deployment.apps/my-app rolled back to revision 2
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl rollout pause deployment/my-app" />
+    <Row last terminal>
+      <p slot="docs">Pause and resume rollouts for canary-style deployments. While paused, you can test new Pods before completing the update.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl set image deployment/my-app app=my-app:v2.0.0
+deployment.apps/my-app image updated
+
+$ kubectl rollout pause deployment/my-app
+deployment.apps/my-app paused
+
+$ kubectl rollout resume deployment/my-app
+deployment.apps/my-app resumed
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

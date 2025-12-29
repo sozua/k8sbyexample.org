@@ -1,0 +1,252 @@
+---
+title: "Services (ClusterIP)"
+description: "Stable network endpoint for a set of Pods"
+order: 6
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>A Service provides a stable IP and DNS name for accessing Pods. Pod IPs are unreliable - they change on restarts and scaling. Services solve this with a persistent endpoint. ClusterIP is the default type and is internal-only.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="service.yaml" />
+    <Row>
+      <p slot="docs">Services use the core <code>v1</code> API. The selector links the Service to Pods. <code>port</code> is what clients connect to.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app
+  labels:
+    app.kubernetes.io/name: my-app
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: my-app
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs"><code>targetPort</code> is where traffic is forwarded to on the Pod. You can use port names instead of numbers.</p>
+      <Fragment slot="code">
+```yaml
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="service-multiport.yaml" />
+    <Row last>
+      <p slot="docs">Services can expose multiple ports. Pods must have ALL labels in the selector to receive traffic.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  selector:
+    app.kubernetes.io/name: my-app
+    app.kubernetes.io/component: api
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get endpoints my-app" />
+    <Row last terminal>
+      <p slot="docs">Each Service gets an Endpoint object automatically. The Endpoint maintains a real-time list of Pod IPs matching the selector.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get svc my-app
+NAME     TYPE        CLUSTER-IP    PORT(S)   AGE
+my-app   ClusterIP   10.96.0.100   80/TCP    5m
+
+$ kubectl get endpoints my-app
+NAME     ENDPOINTS                                   AGE
+my-app   10.244.1.5:8080,10.244.2.3:8080,10.244.3.7:8080   5m
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get endpoints my-app -w" />
+    <Row last terminal>
+      <p slot="docs">Watch endpoints update in real-time as Pods scale up and down.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl scale deployment my-app --replicas=5
+deployment.apps/my-app scaled
+
+$ kubectl get endpoints my-app -w
+NAME     ENDPOINTS
+my-app   10.244.1.5:8080,10.244.2.3:8080,10.244.3.7:8080
+my-app   10.244.1.5:8080,10.244.2.3:8080,10.244.3.7:8080,10.244.1.8:8080
+my-app   10.244.1.5:8080,10.244.2.3:8080,10.244.3.7:8080,10.244.1.8:8080,10.244.2.9:8080
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-env.yaml" />
+    <Row>
+      <p slot="docs">Service discovery via DNS is preferred. Every Service gets a DNS name: <code>service.namespace.svc.cluster.local</code>.</p>
+      <Fragment slot="code">
+```yaml
+env:
+  - name: API_URL
+    value: "http://my-app:80"
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">Cross-namespace references use <code>service.namespace.svc</code> format.</p>
+      <Fragment slot="code">
+```yaml
+  - name: REDIS_URL
+    value: "redis://redis.cache.svc:6379"
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Full FQDN includes <code>.cluster.local</code>. Usually only needed for edge cases.</p>
+      <Fragment slot="code">
+```yaml
+  - name: DB_HOST
+    value: "postgres.database.svc.cluster.local"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl exec my-pod -- nslookup my-app" />
+    <Row last terminal>
+      <p slot="docs">Kubernetes DNS resolves service names dynamically. More reliable than environment variables which are set only at Pod start.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl exec my-pod -- nslookup my-app
+Server:    10.96.0.10
+Address:   10.96.0.10#53
+
+Name:      my-app.default.svc.cluster.local
+Address:   10.96.0.100
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="service-session-affinity.yaml" />
+    <Row last>
+      <p slot="docs">Session affinity routes a client to the same Pod for a period. Useful for stateful apps. Default is <code>None</code> (round-robin).</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get svc" />
+    <Row last terminal>
+      <p slot="docs">Service types build on each other: ClusterIP (internal) → NodePort (adds external port) → LoadBalancer (adds cloud LB).</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get svc
+NAME              TYPE           CLUSTER-IP    EXTERNAL-IP     PORT(S)
+my-app-internal   ClusterIP      10.96.0.100   <none>          80/TCP
+my-app-nodeport   NodePort       10.96.0.101   <none>          80:30080/TCP
+my-app-lb         LoadBalancer   10.96.0.102   34.123.45.67    80:31234/TCP
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe svc my-app" />
+    <Row last terminal>
+      <p slot="docs">Debug Service routing with kubectl. Check Endpoints first - if empty, your selector doesn't match any Pods.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe svc my-app
+Name:              my-app
+Selector:          app.kubernetes.io/name=my-app
+Type:              ClusterIP
+IP:                10.96.0.100
+Port:              http  80/TCP
+TargetPort:        8080/TCP
+Endpoints:         10.244.1.5:8080,10.244.2.3:8080
+
+$ kubectl get pods --show-labels | grep my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl run curl --rm -it --image=curlimages/curl -- curl http://my-app" />
+    <Row last terminal>
+      <p slot="docs">Test Service connectivity from inside the cluster with a temporary Pod.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl run curl --rm -it --image=curlimages/curl -- curl http://my-app
+<!DOCTYPE html>
+<html>
+<body>Hello from my-app!</body>
+</html>
+pod "curl" deleted
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

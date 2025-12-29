@@ -1,0 +1,84 @@
+---
+title: "Services (NodePort)"
+description: "Expose a Service on each node's IP at a static port"
+order: 7
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>NodePort exposes the Service on a port across all cluster nodes. Accessible from outside the cluster via <code>node-ip:node-port</code>. Port range: 30000-32767 (configurable).</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="service-nodeport.yaml" />
+    <Row last>
+      <p slot="docs">Set <code>type: NodePort</code> to expose on all nodes. You can specify <code>nodePort</code> or let Kubernetes assign one.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+      targetPort: 8080
+      nodePort: 30080
+  selector:
+    app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get svc my-app" />
+    <Row last terminal>
+      <p slot="docs">NodePort is rarely used in production. It requires opening firewall ports and lacks load balancing across nodes.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get svc my-app
+NAME     TYPE       CLUSTER-IP    PORT(S)        AGE
+my-app   NodePort   10.96.0.100   80:30080/TCP   5m
+
+$ kubectl get nodes -o wide
+NAME     STATUS   EXTERNAL-IP
+node-1   Ready    192.168.1.10
+node-2   Ready    192.168.1.11
+
+$ curl http://192.168.1.10:30080
+Hello from my-app!
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="minikube service my-app --url" />
+    <Row last terminal>
+      <p slot="docs">NodePort is useful for local development with minikube or kind. Use port-forward for quick access without NodePort.</p>
+      <Fragment slot="code">
+```bash
+$ minikube service my-app --url
+http://192.168.49.2:30080
+
+$ kubectl port-forward svc/my-app 8080:80
+Forwarding from 127.0.0.1:8080 -> 8080
+
+$ curl http://localhost:8080
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

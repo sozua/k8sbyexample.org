@@ -1,0 +1,307 @@
+---
+title: "Namespaces"
+description: "Logical partitions for organizing resources"
+order: 1
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Namespaces partition a cluster into virtual sub-clusters. They provide scope for names and are the basis for resource quotas and RBAC policies.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="namespace.yaml" />
+    <Row>
+      <p slot="docs">A Namespace is a core Kubernetes resource (<code>v1</code> API).</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Namespace
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">The <code>name</code> must be unique cluster-wide. Use lowercase, numbers, and hyphens only.</p>
+      <Fragment slot="code">
+```yaml
+metadata:
+  name: my-app
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Labels help organize and select namespaces. Common patterns: environment, team, cost-center.</p>
+      <Fragment slot="code">
+```yaml
+  labels:
+    environment: production
+    team: platform
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get namespaces" />
+    <Row last terminal>
+      <p slot="docs">Built-in namespaces: <code>default</code> (your resources if unspecified), <code>kube-system</code> (control plane), <code>kube-public</code> (readable by all).</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get namespaces
+NAME              STATUS   AGE
+default           Active   45d
+kube-system       Active   45d
+kube-public       Active   45d
+kube-node-lease   Active   45d
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl create namespace my-app" />
+    <Row last terminal>
+      <p slot="docs">Create a namespace imperatively with <code>kubectl create</code>.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl create namespace my-app
+namespace/my-app created
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl config set-context --current --namespace=my-app" />
+    <Row last terminal>
+      <p slot="docs">Set a default namespace for your current context to avoid typing <code>-n my-app</code> repeatedly.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl config set-context --current --namespace=my-app
+Context "my-cluster" modified.
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl config view --minify | grep namespace" />
+    <Row last terminal>
+      <p slot="docs">Verify your current namespace setting.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl config view --minify | grep namespace
+    namespace: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod.yaml" />
+    <Row>
+      <p slot="docs">Within the same namespace, reference services by name only. Kubernetes DNS resolves it automatically.</p>
+      <Fragment slot="code">
+```yaml
+env:
+  - name: API_URL
+    value: "http://api:8080"
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">Cross-namespace references use <code>service.namespace.svc</code> format.</p>
+      <Fragment slot="code">
+```yaml
+  - name: REDIS_URL
+    value: "redis://redis.cache.svc:6379"
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Full FQDN includes <code>.cluster.local</code>. Usually only needed for edge cases.</p>
+      <Fragment slot="code">
+```yaml
+  - name: DB_HOST
+    value: "postgres.db.svc.cluster.local"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="resourcequota.yaml" />
+    <Row>
+      <p slot="docs">ResourceQuotas limit total resource consumption per namespace. Prevents one team from consuming all cluster resources.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute-quota
+  namespace: my-app
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs"><code>spec.hard</code> defines the limits. Constrain CPU, memory, storage, and object counts.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  hard:
+    requests.cpu: "10"
+    requests.memory: 20Gi
+    limits.cpu: "20"
+    limits.memory: 40Gi
+    pods: "50"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="limitrange.yaml" />
+    <Row>
+      <p slot="docs">LimitRanges set default and max/min resource limits per container.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+spec:
+  limits:
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs"><code>default</code> sets limits when not specified.</p>
+      <Fragment slot="code">
+```yaml
+    - default:
+        cpu: "500m"
+        memory: "512Mi"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+  <tbody>
+    <Row last>
+      <p slot="docs"><code>defaultRequest</code> sets requests.</p>
+      <Fragment slot="code">
+```yaml
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      type: Container
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl api-resources --namespaced=false" />
+    <Row last terminal>
+      <p slot="docs">Some resources are cluster-scoped: Nodes, PersistentVolumes, ClusterRoles, Namespaces.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl api-resources --namespaced=false
+NAME                  SHORTNAMES   APIVERSION   NAMESPACED
+nodes                 no           v1           false
+persistentvolumes     pv           v1           false
+clusterroles                       rbac/v1      false
+namespaces            ns           v1           false
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl api-resources --namespaced=true" />
+    <Row last terminal>
+      <p slot="docs">Most workload resources are namespaced: Pods, Services, Deployments, ConfigMaps.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl api-resources --namespaced=true
+NAME                  SHORTNAMES   APIVERSION   NAMESPACED
+pods                  po           v1           true
+services              svc          v1           true
+deployments           deploy       apps/v1      true
+configmaps            cm           v1           true
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl apply -f deploy.yaml -n my-app" />
+    <Row last terminal>
+      <p slot="docs">Apply resources to a specific namespace with <code>-n</code>.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl apply -f deploy.yaml -n my-app
+deployment.apps/my-app created
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods -A" />
+    <Row last terminal>
+      <p slot="docs">View pods across all namespaces with <code>-A</code>.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -A
+NAMESPACE     NAME                       READY   STATUS
+kube-system   coredns-5d78c9869d-abc     1/1     Running
+kube-system   etcd-master                1/1     Running
+my-app        my-app-6d4f8b7c9-xyz       1/1     Running
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl delete namespace my-app" />
+    <Row last terminal>
+      <p slot="docs">Warning: deleting a namespace deletes ALL resources within it. No undo.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl delete namespace my-app
+namespace "my-app" deleted
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
