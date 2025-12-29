@@ -1,0 +1,211 @@
+---
+title: "Orçamentos de Disrupção de Pod"
+description: "Limite disruptions voluntárias durante manutenção"
+order: 25
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>PDBs protegem contra disruptions voluntárias: drains de node, upgrades de cluster, scale-downs do autoscaler. Garante disponibilidade mínima durante operações de manutenção.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pdb.yaml" />
+    <Row last>
+      <p slot="docs">PDBs usam a API <code>policy/v1</code>. O selector corresponde Pods a proteger. <code>minAvailable</code> especifica quantos Pods devem permanecer rodando durante disruptions.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: my-app-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pdb-options.yaml" />
+    <Row last>
+      <p slot="docs"><code>minAvailable</code>: mínimo de Pods que devem ficar rodando. <code>maxUnavailable</code>: máximo de Pods que podem estar down. Use um ou outro, não ambos. Porcentagens também funcionam.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: my-app
+---
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: my-app
+---
+spec:
+  minAvailable: "50%"
+  selector:
+    matchLabels:
+      app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl drain node-1" />
+    <Row last terminal>
+      <p slot="docs">PDBs só protegem contra disruptions voluntárias como drains (primeiro comando mostra PDB bloqueando eviction). Não podem prevenir disruptions involuntárias: falhas de node, OOMKill, crashes. <code>kubectl delete pod</code> também ignora PDB (segundo comando).</p>
+      <Fragment slot="code">
+```bash
+$ kubectl drain node-1 --ignore-daemonsets
+node/node-1 cordoned
+evicting pod default/my-app-1
+evicting pod default/my-app-2
+error when evicting pods: Cannot evict pod, would violate PDB
+
+$ kubectl delete pod my-app-1 --grace-period=0
+pod "my-app-1" deleted
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="deployment-pdb.yaml" />
+    <Row last>
+      <p slot="docs">Combine PDB com sua contagem de réplicas. Não defina minAvailable igual a réplicas ou drains ficarão pendurados para sempre. Deixe espaço para pelo menos um Pod ser disrupted. <code>minAvailable: 2</code> e <code>maxUnavailable: 1</code> são equivalentes para 3 réplicas.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  replicas: 3
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+spec:
+  minAvailable: 2
+---
+spec:
+  maxUnavailable: 1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pdb-unhealthy.yaml" />
+    <Row last>
+      <p slot="docs"><code>unhealthyPodEvictionPolicy</code> controla eviction de Pods não saudáveis. <code>AlwaysAllow</code> evicta Pods não saudáveis independente do budget. Ajuda com rollouts travados onde Pods estão crashlooping.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: my-app-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: my-app
+  unhealthyPodEvictionPolicy: AlwaysAllow
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pdb" />
+    <Row last terminal>
+      <p slot="docs">Status do PDB mostra disruptions permitidas e contagem atual de Pods. <code>ALLOWED</code> mostra quantos Pods podem ser disrupted com segurança agora. Zero significa que operações vão bloquear.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pdb
+NAME         MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+my-app-pdb   2               N/A               1                     5m
+
+$ kubectl describe pdb my-app-pdb
+Status:
+  Current Healthy:   3
+  Desired Healthy:   2
+  Disruptions Allowed: 1
+  Expected Pods:     3
+  Observed Generation: 1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="deployment-pdb-strategy.yaml" />
+    <Row last>
+      <p slot="docs">Durante rolling updates, PDB interage com estratégia do Deployment. Ambas restrições devem ser satisfeitas. Pode causar rollouts lentos se ambas são muito restritivas.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+---
+spec:
+  minAvailable: 2
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pdb -A" />
+    <Row last terminal>
+      <p slot="docs">Debug problemas de PDB verificando disruptions permitidas e eventos de eviction. Force drain bypassa PDB mas arrisca disponibilidade. Use <code>--delete-emptydir-data</code> para Pods com volumes emptyDir.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pdb -A
+NAMESPACE   NAME         MIN AVAILABLE   ALLOWED DISRUPTIONS
+default     my-app-pdb   2               1
+kube-system coredns      1               1
+
+$ kubectl get pods -l app=my-app
+NAME         READY   STATUS    AGE
+my-app-1     1/1     Running   10m
+my-app-2     1/1     Running   10m
+my-app-3     1/1     Running   10m
+
+$ kubectl drain node-1 --force --ignore-daemonsets \
+    --delete-emptydir-data
+node/node-1 drained
+
+$ kubectl get events --field-selector reason=Eviction
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

@@ -1,0 +1,240 @@
+---
+title: "Escalonador Horizontal de Pods"
+description: "Escale Pods automaticamente baseado em métricas"
+order: 21
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>HPA escala Pods baseado em CPU, memória ou métricas customizadas. Requer metrics-server no cluster. Ajusta réplicas para manter utilização alvo automaticamente.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="hpa.yaml" />
+    <Row last>
+      <p slot="docs">HPA usa a API <code>autoscaling/v2</code>. <code>scaleTargetRef</code> aponta para o Deployment a escalar. HPA ajusta réplicas entre min e max baseado em métricas.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-resources.yaml" />
+    <Row last>
+      <p slot="docs">HPA calcula utilização como atual/request. Requer resource requests definidos. Sem requests, HPA não consegue determinar porcentagem de utilização.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="hpa-multi-metric.yaml" />
+    <Row last>
+      <p slot="docs">Combine métricas de CPU e memória. HPA usa o máximo de réplicas calculadas de todas as métricas. Bom para workloads que são CPU e memória bound.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="hpa-behavior.yaml" />
+    <Row last>
+      <p slot="docs">Controle comportamento de scaling: scale up rápido, down lento. <code>stabilizationWindowSeconds</code> previne flapping durante picos de tráfego. Policies controlam taxa de scale por período de tempo.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+      selectPolicy: Max
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="hpa-custom.yaml" />
+    <Row last>
+      <p slot="docs">Métricas customizadas do Prometheus ou outras fontes. Requer metrics adapter (prometheus-adapter, KEDA). Escale em profundidade de fila, requisições por segundo ou qualquer métrica de aplicação.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          name: requests_per_second
+        target:
+          type: AverageValue
+          averageValue: 1000
+    - type: Object
+      object:
+        metric:
+          name: queue_depth
+        describedObject:
+          apiVersion: v1
+          kind: Service
+          name: rabbitmq
+        target:
+          type: Value
+          value: 100
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="hpa-external.yaml" />
+    <Row last>
+      <p slot="docs">Métricas externas vêm de fora do cluster (cloud monitoring, SaaS). Escale baseado em tamanho de fila SQS, backlog Pub/Sub ou qualquer fonte de dados externa. Requer external metrics provider como KEDA.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: sqs_queue_messages
+          selector:
+            matchLabels:
+              queue: orders
+        target:
+          type: AverageValue
+          averageValue: 10
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="hpa-targets.yaml" />
+    <Row last>
+      <p slot="docs">HPA funciona com Deployments, StatefulSets e ReplicaSets. Não pode escalar DaemonSets (1 por node por design). Conflita com scaling manual - HPA sobrescreve mudanças manuais de réplicas.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app
+---
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: postgres
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get hpa" />
+    <Row last terminal>
+      <p slot="docs">Debug HPA verificando events, métricas atuais e conditions. Problemas comuns: metrics-server não rodando, resource requests faltando, nomes de métrica inválidos. TARGETS mostra utilização atual/alvo.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get hpa
+NAME     REFERENCE           TARGETS   MINPODS   MAXPODS   REPLICAS   AGE
+my-app   Deployment/my-app   65%/70%   2         10        3          5m
+
+$ kubectl describe hpa my-app
+Conditions:
+  Type            Status  Reason
+  AbleToScale     True    ReadyForNewScale
+  ScalingActive   True    ValidMetricFound
+
+$ kubectl get pods -n kube-system | grep metrics-server
+metrics-server-abc12   1/1     Running
+
+$ kubectl top pods
+NAME        CPU(cores)   MEMORY(bytes)
+my-app-1    150m         200Mi
+my-app-2    140m         195Mi
+
+$ kubectl autoscale deployment my-app \
+    --min=2 --max=10 --cpu-percent=70
+horizontalpodautoscaler.autoscaling/my-app created
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

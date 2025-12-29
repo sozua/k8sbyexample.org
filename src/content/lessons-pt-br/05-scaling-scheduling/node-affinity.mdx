@@ -1,0 +1,110 @@
+---
+title: "Node Affinity"
+description: "Agende Pods em nós específicos baseado em labels de nó"
+order: 32
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Node affinity restringe Pods a executar em nós com labels específicos. Diferente do nodeSelector (correspondência simples chave-valor), node affinity suporta expressões complexas com operadores como In, NotIn, Exists e Gt. Use para: workloads GPU, posicionamento por zona, requisitos de hardware, restrições de licenciamento.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="node-affinity-required.yaml" />
+    <Row last>
+      <p slot="docs"><code>requiredDuringSchedulingIgnoredDuringExecution</code> é um requisito obrigatório. O Pod não será agendado a menos que um nó correspondente exista. Use para: requisitos de hardware, compliance, licenciamento.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-workload
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: gpu-type
+                operator: In
+                values:
+                  - nvidia-a100
+                  - nvidia-v100
+  containers:
+    - name: ml-training
+      image: ml-trainer:v1
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="node-affinity-preferred.yaml" />
+    <Row last>
+      <p slot="docs"><code>preferredDuringSchedulingIgnoredDuringExecution</code> é uma preferência suave. O scheduler tenta colocar Pods em nós correspondentes mas usará outros nós se necessário. Pesos variam de 1-100; maior = preferência mais forte.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-server
+spec:
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 80
+          preference:
+            matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                  - high-memory
+        - weight: 20
+          preference:
+            matchExpressions:
+              - key: topology.kubernetes.io/zone
+                operator: In
+                values:
+                  - us-east-1a
+  containers:
+    - name: nginx
+      image: nginx:alpine
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl label nodes" />
+    <Row last terminal>
+      <p slot="docs">Aplique labels em nós para habilitar regras de affinity. Visualize labels existentes para entender opções de agendamento disponíveis.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl label nodes worker-1 gpu-type=nvidia-a100
+node/worker-1 labeled
+
+$ kubectl get nodes --show-labels
+NAME       STATUS   LABELS
+worker-1   Ready    gpu-type=nvidia-a100,kubernetes.io/arch=amd64
+
+$ kubectl get nodes -l gpu-type=nvidia-a100
+NAME       STATUS   ROLES    AGE   VERSION
+worker-1   Ready    <none>   10d   v1.28.0
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

@@ -1,0 +1,111 @@
+---
+title: "Taints & Tolerations"
+description: "Repelir Pods de nós a menos que tolerem condições específicas"
+order: 33
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Taints marcam nós para repelir Pods; tolerations permitem que Pods sejam agendados em nós com taint. Diferente de affinity (atrair Pods para nós), taints funcionam por repulsão. Use para: nós dedicados, nós GPU, manutenção, prevenir workloads em hardware específico.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="taint-effects.yaml" />
+    <Row last>
+      <p slot="docs">Três efeitos de taint: <code>NoSchedule</code> (novos Pods não serão agendados), <code>PreferNoSchedule</code> (preferência suave para evitar), <code>NoExecute</code> (Pods existentes são despejados, novos Pods não serão agendados).</p>
+      <Fragment slot="code">
+```bash
+kubectl taint nodes worker-1 dedicated=gpu:NoSchedule
+
+kubectl taint nodes worker-2 preferred=lowpriority:PreferNoSchedule
+
+kubectl taint nodes worker-3 maintenance=true:NoExecute
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="toleration-exact.yaml" />
+    <Row last>
+      <p slot="docs">O operador <code>Equal</code> requer correspondência exata de chave e valor. Este Pod pode executar em nós com taint <code>dedicated=gpu:NoSchedule</code>. Sem esta toleration, seria rejeitado.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-workload
+spec:
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "gpu"
+      effect: "NoSchedule"
+  containers:
+    - name: ml-training
+      image: ml-trainer:v1
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="toleration-exists.yaml" />
+    <Row last>
+      <p slot="docs">O operador <code>Exists</code> corresponde a qualquer taint com a chave especificada, independente do valor. Útil quando você não se importa com o valor específico do taint.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tolerate-any-dedicated
+spec:
+  tolerations:
+    - key: "dedicated"
+      operator: "Exists"
+      effect: "NoSchedule"
+  containers:
+    - name: app
+      image: my-app:v1
+---
+tolerations:
+  - operator: "Exists"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl taint nodes" />
+    <Row last terminal>
+      <p slot="docs">Gerencie taints com kubectl. Adicione taints para repelir Pods, remova taints (com sufixo menos) para permitir agendamento.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl taint nodes worker-1 dedicated=gpu:NoSchedule
+node/worker-1 tainted
+
+$ kubectl describe node worker-1 | grep -A3 Taints
+Taints:             dedicated=gpu:NoSchedule
+
+$ kubectl taint nodes worker-1 dedicated=gpu:NoSchedule-
+node/worker-1 untainted
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

@@ -1,0 +1,214 @@
+---
+title: "Restrições de Distribuição Topológica"
+description: "Distribua Pods uniformemente entre domínios de falha"
+order: 24
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Topology spread garante distribuição uniforme de Pods entre zones ou nodes. Mais flexível que anti-affinity para requisitos complexos de spreading. Controla o "skew" entre domínios.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="topology-spread.yaml" />
+    <Row last>
+      <p slot="docs">Topology spread é definido em <code>topologySpreadConstraints</code>. <code>maxSkew</code> é o desbalanceamento permitido. Com 6 Pods em 3 zones e maxSkew=1, cada zone fica com 2 Pods.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="topology-spread-multi.yaml" />
+    <Row last>
+      <p slot="docs"><code>maxSkew: 1</code> significa que zones podem diferir por no máximo 1 Pod. <code>DoNotSchedule</code> aplica estritamente; <code>ScheduleAnyway</code> é best-effort. Múltiplas constraints podem ter rigidez diferente.</p>
+      <Fragment slot="code">
+```yaml
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app: my-app
+  - maxSkew: 2
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="topology-spread-mindomains.yaml" />
+    <Row last>
+      <p slot="docs"><code>minDomains</code> garante que Pods se espalhem em pelo menos N domínios. Previne todos Pods caindo em uma zone quando cluster é pequeno. Só aplica com <code>DoNotSchedule</code>.</p>
+      <Fragment slot="code">
+```yaml
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    minDomains: 3
+    labelSelector:
+      matchLabels:
+        app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="topology-spread-taints.yaml" />
+    <Row last>
+      <p slot="docs"><code>nodeTaintsPolicy</code> controla se nodes com taints são considerados. <code>Honor</code> (padrão) exclui nodes com taints que Pod não tolera. <code>Ignore</code> inclui todos os nodes no cálculo.</p>
+      <Fragment slot="code">
+```yaml
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    nodeTaintsPolicy: Honor
+    labelSelector:
+      matchLabels:
+        app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="topology-spread-affinity.yaml" />
+    <Row last>
+      <p slot="docs"><code>nodeAffinityPolicy</code> controla se node affinity é considerada no cálculo de spread. <code>Honor</code> só conta nodes correspondendo à affinity. <code>Ignore</code> conta todos os nodes.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: workload-type
+                operator: In
+                values: [compute]
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      nodeAffinityPolicy: Honor
+      labelSelector:
+        matchLabels:
+          app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="topology-spread-production.yaml" />
+    <Row last>
+      <p slot="docs">Combine spreading por zone e node para workloads de produção. Spread estrito por zone previne impacto de falha de zone. Spread flexível por node lida com contagens desiguais de nodes.</p>
+      <Fragment slot="code">
+```yaml
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app: my-app
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="topology-spread-rollout.yaml" />
+    <Row last>
+      <p slot="docs"><code>matchLabelKeys</code> automaticamente seleciona Pods do mesmo controller (revisão do Deployment). Previne cálculo de spread incluir Pods de ReplicaSets antigos durante rollout.</p>
+      <Fragment slot="code">
+```yaml
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app: my-app
+    matchLabelKeys:
+      - pod-template-hash
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods -l app=my-app -o wide" />
+    <Row last terminal>
+      <p slot="docs">Debug topology spread verificando distribuição de Pods e eventos do scheduler. Verifique labels de zone nos nodes. Use colunas customizadas para ver topologia rapidamente.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -l app=my-app -o wide
+NAME         READY   STATUS    NODE
+my-app-1     1/1     Running   node-1
+my-app-2     1/1     Running   node-2
+my-app-3     1/1     Running   node-3
+
+$ kubectl get nodes -L topology.kubernetes.io/zone
+NAME     STATUS   ZONE
+node-1   Ready    us-east-1a
+node-2   Ready    us-east-1b
+node-3   Ready    us-east-1c
+
+$ kubectl describe pod my-app-xyz
+Events:
+  Type     Reason            Message
+  Warning  FailedScheduling  0/3 nodes available:
+    3 node(s) didn't match topology spread constraints
+
+$ kubectl get pod my-app-1 -o yaml | grep -A20 topologySpreadConstraints
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
