@@ -1,0 +1,110 @@
+---
+title: "Padrão Ambassador"
+description: "Faça proxy de conexões para serviços externos através de um container local"
+order: 51
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>O padrão ambassador usa um container proxy para intermediar conexões entre sua aplicação e serviços externos. A app conecta ao localhost; o ambassador gerencia service discovery, sharding, balanceamento de carga ou tradução de protocolo. Use para: sharding de banco de dados, broker de serviços, testes A/B, circuit breaking.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="ambassador-redis-shard.yaml" />
+    <Row>
+      <p slot="docs">Um ambassador de sharding Redis. A app conecta ao localhost:6379 pensando ser uma única instância Redis. O ambassador twemproxy distribui chaves entre múltiplos shards Redis automaticamente.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-redis
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      env:
+        - name: REDIS_HOST
+          value: "localhost"
+        - name: REDIS_PORT
+          value: "6379"
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">O ambassador twemproxy escuta no localhost:6379 e roteia requisições para o shard Redis apropriado baseado em hash de chave. O código da app não precisa de lógica de sharding.</p>
+      <Fragment slot="code">
+```yaml
+    - name: redis-ambassador
+      image: ganomede/twemproxy:latest
+      ports:
+        - containerPort: 6379
+      volumeMounts:
+        - name: twemproxy-config
+          mountPath: /etc/nutcracker
+  volumes:
+    - name: twemproxy-config
+      configMap:
+        name: twemproxy-config
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="twemproxy-config.yaml" />
+    <Row last>
+      <p slot="docs">Configuração do Twemproxy define a estratégia de sharding. <code>ketama</code> usa hashing consistente para que adicionar/remover shards minimize redistribuição de chaves.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: twemproxy-config
+data:
+  nutcracker.yaml: |
+    redis:
+      listen: 127.0.0.1:6379
+      hash: fnv1a_64
+      distribution: ketama
+      auto_eject_hosts: true
+      redis: true
+      servers:
+        - redis-shard-0.redis:6379:1
+        - redis-shard-1.redis:6379:1
+        - redis-shard-2.redis:6379:1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl logs app-with-redis -c redis-ambassador" />
+    <Row last terminal>
+      <p slot="docs">Debug ambassadors verificando seus logs e conectividade. A app vê apenas localhost; o ambassador gerencia a complexidade de múltiplos backends, failover e distribuição de carga.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl logs app-with-redis -c redis-ambassador
+nutcracker: started on pid 1
+nutcracker: listening on 127.0.0.1:6379
+
+$ kubectl exec app-with-redis -c app -- redis-cli -h localhost ping
+PONG
+
+$ kubectl exec app-with-redis -c app -- redis-cli -h localhost set foo bar
+OK
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
