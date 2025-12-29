@@ -16,13 +16,6 @@
 
 Kubernetes by Example is an interactive learning resource that teaches Kubernetes through annotated YAML examples. Learn by reading production-ready patterns with side-by-side explanations.
 
-## Features
-
-- **Annotated examples** with side-by-side explanations
-- **Production patterns** not just syntax, but real-world usage
-- **Bilingual** available in English and Portuguese
-- **Keyboard navigation** use arrow keys to move between lessons
-
 ## Topics
 
 - Architecture
