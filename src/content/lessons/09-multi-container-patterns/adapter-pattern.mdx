@@ -1,0 +1,268 @@
+---
+title: "Adapter Pattern"
+description: "Standardize heterogeneous application interfaces for monitoring and logging"
+order: 52
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>The adapter pattern transforms an application's interface to match a standard expected by external systems. Unlike sidecars that add features, adapters normalize existing interfaces. Use for: exposing Prometheus metrics from apps that don't support it, converting log formats, standardizing health check endpoints.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="adapter-redis-prometheus.yaml" />
+    <Row>
+      <p slot="docs">Redis doesn't expose Prometheus metrics natively. The redis_exporter adapter queries Redis and exposes metrics in Prometheus format on port 9121. Prometheus scrapes the adapter, not Redis directly.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-with-metrics
+  labels:
+    app: redis
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9121"
+spec:
+  containers:
+    - name: redis
+      image: redis:7-alpine
+      ports:
+        - containerPort: 6379
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">The adapter container connects to Redis on localhost:6379 (shared network namespace) and translates Redis INFO command output into Prometheus metrics format.</p>
+      <Fragment slot="code">
+```yaml
+    - name: redis-exporter
+      image: oliver006/redis_exporter:v1.55.0
+      ports:
+        - containerPort: 9121
+          name: metrics
+      env:
+        - name: REDIS_ADDR
+          value: "localhost:6379"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="adapter-mysql-prometheus.yaml" />
+    <Row last>
+      <p slot="docs">MySQL metrics adapter exposes database performance metrics (queries/sec, connections, replication lag) in Prometheus format. Requires read-only database credentials.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mysql-with-metrics
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9104"
+spec:
+  containers:
+    - name: mysql
+      image: mysql:8.0
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: password
+      ports:
+        - containerPort: 3306
+    - name: mysqld-exporter
+      image: prom/mysqld-exporter:v0.15.1
+      ports:
+        - containerPort: 9104
+      env:
+        - name: DATA_SOURCE_NAME
+          value: "exporter:password@(localhost:3306)/"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="adapter-nginx-prometheus.yaml" />
+    <Row last>
+      <p slot="docs">Nginx exports basic metrics via stub_status module. The nginx-prometheus-exporter adapter parses this output and converts it to Prometheus format with proper metric names and labels.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-with-metrics
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9113"
+spec:
+  containers:
+    - name: nginx
+      image: nginx:alpine
+      ports:
+        - containerPort: 80
+      volumeMounts:
+        - name: nginx-conf
+          mountPath: /etc/nginx/conf.d
+    - name: nginx-exporter
+      image: nginx/nginx-prometheus-exporter:1.0
+      args:
+        - -nginx.scrape-uri=http://localhost:8080/stub_status
+      ports:
+        - containerPort: 9113
+  volumes:
+    - name: nginx-conf
+      configMap:
+        name: nginx-status-config
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="nginx-status-config.yaml" />
+    <Row last>
+      <p slot="docs">Enable nginx stub_status on a separate port (8080) for the exporter to scrape. This endpoint is internal to the Pod and not exposed externally.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-status-config
+data:
+  status.conf: |
+    server {
+      listen 8080;
+      location /stub_status {
+        stub_status;
+        allow 127.0.0.1;
+        deny all;
+      }
+    }
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="adapter-log-format.yaml" />
+    <Row last>
+      <p slot="docs">A log format adapter transforms application-specific log formats into a standardized JSON format. The adapter reads logs from a shared volume and outputs normalized JSON to stdout.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-log-adapter
+spec:
+  containers:
+    - name: legacy-app
+      image: legacy-app:v1
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+    - name: log-adapter
+      image: fluent/fluentd:v1.16
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+          readOnly: true
+        - name: fluentd-config
+          mountPath: /fluentd/etc
+  volumes:
+    - name: logs
+      emptyDir: {}
+    - name: fluentd-config
+      configMap:
+        name: fluentd-log-adapter
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="adapter-health-check.yaml" />
+    <Row last>
+      <p slot="docs">A health check adapter provides a standardized HTTP health endpoint for apps that don't have one. The adapter runs queries against the app and exposes the result on a standard endpoint.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: db-with-health-adapter
+spec:
+  containers:
+    - name: mysql
+      image: mysql:8.0
+      ports:
+        - containerPort: 3306
+    - name: health-adapter
+      image: my-health-adapter:v1
+      ports:
+        - containerPort: 8080
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 30
+      env:
+        - name: CHECK_QUERY
+          value: "SELECT 1"
+        - name: DB_HOST
+          value: "localhost"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl port-forward redis-with-metrics 9121:9121" />
+    <Row last terminal>
+      <p slot="docs">Verify the adapter is working by checking its metrics endpoint. Prometheus will scrape this endpoint automatically based on the annotations. The adapter translates Redis-specific data to standard metrics.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl port-forward redis-with-metrics 9121:9121 &
+Forwarding from 127.0.0.1:9121 -> 9121
+
+$ curl localhost:9121/metrics | head -20
+# HELP redis_up Information about the Redis instance
+# TYPE redis_up gauge
+redis_up 1
+# HELP redis_connected_clients Number of client connections
+# TYPE redis_connected_clients gauge
+redis_connected_clients 2
+# HELP redis_commands_processed_total Total commands processed
+# TYPE redis_commands_processed_total counter
+redis_commands_processed_total 1542
+
+$ kubectl logs redis-with-metrics -c redis-exporter
+INFO Listening on :9121
+INFO Redis connection established
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
