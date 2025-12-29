@@ -1,0 +1,207 @@
+---
+title: "Environment Variables"
+description: "Configure containers with env vars from multiple sources"
+order: 11
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Environment variables configure containers at runtime. Kubernetes supports multiple sources: static values, ConfigMaps, Secrets, and the Downward API. Env vars are set at container start and don't auto-update.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-env.yaml" />
+    <Row last>
+      <p slot="docs">Define environment variables directly in the Pod spec. Simple and explicit, but requires redeployment to change values. Use for static config that rarely changes.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      env:
+        - name: PORT
+          value: "8080"
+        - name: DEBUG
+          value: "false"
+        - name: FEATURES
+          value: "auth,logging,metrics"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-env-refs.yaml" />
+    <Row last>
+      <p slot="docs">Reference ConfigMaps and Secrets for externalized configuration. Use <code>optional: false</code> to fail Pod startup if the key is missing. Decouples config from Pod specs.</p>
+      <Fragment slot="code">
+```yaml
+env:
+  - name: DATABASE_URL
+    valueFrom:
+      secretKeyRef:
+        name: db-secrets
+        key: url
+        optional: false
+  - name: LOG_LEVEL
+    valueFrom:
+      configMapKeyRef:
+        name: app-config
+        key: LOG_LEVEL
+        optional: true
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-downward-api.yaml" />
+    <Row last>
+      <p slot="docs">The Downward API exposes Pod metadata via <code>fieldRef</code>. Inject Pod name, namespace, IP, and node info. Essential for logging, tracing, and self-discovery.</p>
+      <Fragment slot="code">
+```yaml
+env:
+  - name: POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+  - name: POD_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+  - name: POD_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+  - name: NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-labels-env.yaml" />
+    <Row last>
+      <p slot="docs">Access labels and annotations via the Downward API. Useful for passing deployment info to your application for metrics, tracing, or feature flags.</p>
+      <Fragment slot="code">
+```yaml
+env:
+  - name: APP_VERSION
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.labels['app.kubernetes.io/version']
+  - name: DEPLOY_SHA
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.annotations['deploy-sha']
+  - name: SERVICE_ACCOUNT
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.serviceAccountName
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-resource-env.yaml" />
+    <Row last>
+      <p slot="docs"><code>resourceFieldRef</code> exposes container resource limits. Critical for JVM heap sizing and memory-aware caching. Use <code>divisor</code> to convert units (1Mi, 1m).</p>
+      <Fragment slot="code">
+```yaml
+env:
+  - name: MEMORY_LIMIT
+    valueFrom:
+      resourceFieldRef:
+        containerName: app
+        resource: limits.memory
+        divisor: 1Mi
+  - name: CPU_REQUEST
+    valueFrom:
+      resourceFieldRef:
+        containerName: app
+        resource: requests.cpu
+        divisor: 1m
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-envfrom.yaml" />
+    <Row last>
+      <p slot="docs"><code>envFrom</code> loads all keys from a ConfigMap or Secret. Use <code>prefix</code> to namespace them. Keys become prefixed: CONFIG_DEBUG, SECRET_API_KEY.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      envFrom:
+        - configMapRef:
+            name: app-config
+          prefix: CONFIG_
+        - secretRef:
+            name: app-secrets
+          prefix: SECRET_
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-env-interpolation.yaml" />
+    <Row>
+      <p slot="docs">Env vars can reference other env vars using <code>$(VAR_NAME)</code> syntax. Evaluated at container start. Useful for building connection strings from components.</p>
+      <Fragment slot="code">
+```yaml
+env:
+  - name: DB_HOST
+    value: "postgres"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    value: "myapp"
+  - name: DATABASE_URL
+    value: "postgresql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Order matters: env vars are evaluated in order. Later vars can reference earlier ones. ConfigMap/Secret refs are resolved before inline values using them.</p>
+      <Fragment slot="code">
+```yaml
+env:
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db-secrets
+        key: password
+  - name: DATABASE_URL
+    value: "postgresql://user:$(DB_PASSWORD)@db:5432/app"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

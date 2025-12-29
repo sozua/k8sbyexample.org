@@ -1,0 +1,193 @@
+---
+title: "ConfigMaps"
+description: "Store non-sensitive configuration data"
+order: 9
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>ConfigMaps store non-sensitive configuration as key-value pairs. They decouple configuration from container images. Inject them as environment variables or mount as files. Never store secrets here.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="configmap.yaml" />
+    <Row last>
+      <p slot="docs">ConfigMaps use the core <code>v1</code> API. The <code>data</code> field holds string key-value pairs for configuration.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  DEBUG: "false"
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "info"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="configmap-file.yaml" />
+    <Row last>
+      <p slot="docs">Store multi-line config files using literal block syntax (<code>|</code>). The key becomes the filename when mounted. Perfect for nginx.conf or application.yaml.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+data:
+  nginx.conf: |
+    server {
+      listen 80;
+      location / {
+        proxy_pass http://backend:8080;
+      }
+    }
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-envfrom.yaml" />
+    <Row last>
+      <p slot="docs">Inject all keys as environment variables with <code>envFrom</code>. Use <code>prefix</code> to namespace them and avoid collisions. DEBUG becomes APP_DEBUG.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      envFrom:
+        - configMapRef:
+            name: app-config
+          prefix: APP_
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-env-valueFrom.yaml" />
+    <Row last>
+      <p slot="docs">Select specific keys with <code>valueFrom</code>. Useful when ConfigMap key names don't match expected env vars. Use <code>optional: true</code> to allow Pod startup if key is missing.</p>
+      <Fragment slot="code">
+```yaml
+env:
+  - name: DEBUG_MODE
+    valueFrom:
+      configMapKeyRef:
+        name: app-config
+        key: DEBUG
+        optional: true
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-volume-mount.yaml" />
+    <Row last>
+      <p slot="docs">Mount ConfigMap as files in a volume. Each key becomes a file. Mounted ConfigMaps auto-update when changed (within ~1 minute). Use <code>items</code> to select specific keys.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      volumeMounts:
+        - name: config
+          mountPath: /etc/app
+          readOnly: true
+  volumes:
+    - name: config
+      configMap:
+        name: app-config
+        items:
+          - key: nginx.conf
+            path: nginx.conf
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="configmap-immutable.yaml" />
+    <Row last>
+      <p slot="docs">Immutable ConfigMaps cannot be changed after creation. This improves performance (no watches) and prevents accidental changes. You must delete and recreate to update.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config-v1
+immutable: true
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "info"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl create configmap" />
+    <Row last terminal>
+      <p slot="docs">Create ConfigMaps imperatively from literals, files, directories, or env files. The <code>--dry-run=client -o yaml</code> pattern generates declarative manifests.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl create configmap app-config \
+    --from-literal=DEBUG=false \
+    --from-literal=PORT=8080
+configmap/app-config created
+
+$ kubectl create configmap nginx-conf \
+    --from-file=nginx.conf
+configmap/nginx-conf created
+
+$ kubectl create configmap my-config \
+    --from-env-file=.env \
+    --dry-run=client -o yaml > configmap.yaml
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl edit configmap app-config" />
+    <Row last terminal>
+      <p slot="docs">ConfigMap updates with mounted volumes propagate automatically. Env vars never update, so a Pod restart is required. Use rollout restart or tools like Reloader for auto-restart.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl edit configmap app-config
+configmap/app-config edited
+
+$ kubectl rollout restart deployment my-app
+deployment.apps/my-app restarted
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
