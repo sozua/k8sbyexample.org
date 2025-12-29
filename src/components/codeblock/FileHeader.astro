@@ -1,0 +1,26 @@
+---
+import Copy from 'lucide-astro/Copy';
+
+interface Props {
+  filename: string;
+}
+
+const { filename } = Astro.props;
+---
+
+<tr>
+  <td class="spacer pr-6 max-md:hidden"></td>
+  <td class="header bg-code-bg border-x border-t border-white/[0.06] rounded-t-lg p-0">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+      <span class="font-mono text-xs text-white/50">{filename}</span>
+      <button
+        type="button"
+        class="copy-btn bg-transparent border-0 text-white/40 cursor-pointer p-1 rounded flex items-center justify-center transition-all duration-150 shrink-0 hover:text-white/90 hover:bg-white/10"
+        aria-label="Copy code"
+        title="Copy to clipboard"
+      >
+        <Copy size={14} />
+      </button>
+    </div>
+  </td>
+</tr>

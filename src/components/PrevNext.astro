@@ -1,0 +1,36 @@
+---
+interface Props {
+  prev?: { slug: string; title: string } | null;
+  next?: { slug: string; title: string } | null;
+  basePath?: string;
+}
+
+const { prev, next, basePath = '' } = Astro.props;
+---
+
+{(prev || next) && (
+  <nav class="mt-8 pt-6 border-t border-white/[0.08] flex justify-between" aria-label="Example navigation">
+    {prev ? (
+      <p>
+        <a href={`${basePath}/${prev.slug}`} rel="prev" class="text-white/60 text-sm hover:underline">&larr; {prev.title}</a>
+      </p>
+    ) : <span />}
+    {next && (
+      <p>
+        <a href={`${basePath}/${next.slug}`} rel="next" class="text-white/60 text-sm hover:underline">{next.title} &rarr;</a>
+      </p>
+    )}
+  </nav>
+)}
+
+<script define:vars={{ prevSlug: prev?.slug, nextSlug: next?.slug, basePath }}>
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+    if (e.key === 'ArrowLeft' && prevSlug) {
+      window.location.href = basePath + '/' + prevSlug;
+    }
+    if (e.key === 'ArrowRight' && nextSlug) {
+      window.location.href = basePath + '/' + nextSlug;
+    }
+  });
+</script>

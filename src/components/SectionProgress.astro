@@ -1,0 +1,174 @@
+---
+import { getModuleForLesson, modules } from "@data/modules";
+import { translations } from "@data/translations";
+import ChevronLeft from 'lucide-astro/ChevronLeft';
+import ChevronRight from 'lucide-astro/ChevronRight';
+
+interface Props {
+  currentSlug: string;
+  basePath?: string;
+  allLessons: { slug: string; title: string }[];
+}
+
+const { currentSlug, basePath = "", allLessons } = Astro.props;
+const currentModule = getModuleForLesson(currentSlug);
+
+if (!currentModule) {
+  return;
+}
+
+const lang = basePath === "/pt-br" ? "pt-br" : "en";
+const t = translations[lang].modules;
+
+const sectionsData = modules.map((mod) => ({
+  key: mod.key,
+  name: t[mod.key as keyof typeof t],
+  lessons: mod.lessons.map((slug) => {
+    const lesson = allLessons.find((e) => e.slug === slug);
+    return { slug, title: lesson?.title || slug };
+  }),
+}));
+
+const currentSectionIndex = modules.findIndex((m) => m.key === currentModule.key);
+const currentPageIndex = currentModule.lessons.indexOf(currentSlug);
+---
+
+<div
+  class="section-progress group fixed left-5 top-1/2 -translate-y-1/2 z-[100] hidden xl:block"
+  data-sections={JSON.stringify(sectionsData)}
+  data-current-section={currentSectionIndex}
+  data-current-page={currentPageIndex}
+  data-base-path={basePath}
+>
+  <div class="bars flex flex-col gap-1.5 py-2 transition-opacity duration-200 group-hover:opacity-0">
+    {
+      currentModule.lessons.map((_, i) => (
+        <div
+          class:list={[
+            "w-4 h-0.5 rounded-sm",
+            i === currentPageIndex ? "bg-white/65" : "bg-white/25"
+          ]}
+        />
+      ))
+    }
+  </div>
+  <div class="card-wrapper absolute left-0 top-1/2 -translate-y-1/2 w-[220px] h-[280px] opacity-0 pointer-events-none transition-opacity duration-200 group-hover:opacity-100 group-hover:pointer-events-auto">
+    <div class="bg-card-bg border border-white/[0.08] rounded-lg px-4 py-3">
+      <div class="flex items-center justify-between gap-4 mb-2.5 pb-2.5 border-b border-white/[0.08]">
+        <span class="section-name text-xs font-medium text-white/50 uppercase tracking-wide whitespace-nowrap overflow-hidden text-ellipsis flex-1">
+          {t[currentModule.key as keyof typeof t]}
+        </span>
+        <div class="flex gap-1 shrink-0">
+          <button
+            class="arrow prev flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded text-white/40 cursor-pointer transition-all duration-150 hover:bg-white/[0.08] hover:text-white/80"
+            aria-label="Previous section"
+          >
+            <ChevronLeft size={12} strokeWidth={1.5} />
+          </button>
+          <button
+            class="arrow next flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded text-white/40 cursor-pointer transition-all duration-150 hover:bg-white/[0.08] hover:text-white/80"
+            aria-label="Next section"
+          >
+            <ChevronRight size={12} strokeWidth={1.5} />
+          </button>
+        </div>
+      </div>
+      <div class="items flex flex-col gap-2">
+        {
+          currentModule.lessons.map((slug, i) => {
+            const lesson = allLessons.find((e) => e.slug === slug);
+            return (
+              <a
+                href={`${basePath}/${slug}`}
+                class:list={[
+                  "text-sm no-underline whitespace-nowrap overflow-hidden text-ellipsis transition-colors duration-150 hover:text-white/80",
+                  i === currentPageIndex ? "text-white/80" : "text-white/50"
+                ]}
+              >
+                {lesson?.title || slug}
+              </a>
+            );
+          })
+        }
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const container = document.querySelector(".section-progress") as HTMLElement;
+  if (container) {
+    let sections: Array<{ key: string; name: string; lessons: Array<{ slug: string; title: string }> }> = [];
+    try {
+      sections = JSON.parse(container.dataset.sections || "[]");
+    } catch (e) {
+      console.error("Failed to parse sections data:", e);
+    }
+
+    const basePath = container.dataset.basePath || "";
+    let currentSectionIdx = parseInt(container.dataset.currentSection || "0", 10);
+    const originalSectionIdx = currentSectionIdx;
+    const originalPageIdx = parseInt(container.dataset.currentPage || "0", 10);
+
+    const sectionName = container.querySelector(".section-name");
+    const itemsContainer = container.querySelector(".items");
+    const prevBtn = container.querySelector(".arrow.prev");
+    const nextBtn = container.querySelector(".arrow.next");
+
+    if (!sectionName || !itemsContainer || !prevBtn || !nextBtn) {
+      console.error("SectionProgress: Missing required DOM elements");
+    }
+
+    function renderSection(sectionIdx: number) {
+      const section = sections[sectionIdx];
+      if (!section || !sectionName || !itemsContainer) return;
+
+      sectionName.textContent = section.name;
+
+      itemsContainer.replaceChildren();
+      section.lessons.forEach((ex: { slug: string; title: string }, i: number) => {
+        const isActive = sectionIdx === originalSectionIdx && i === originalPageIdx;
+        const link = document.createElement('a');
+        link.href = `${basePath}/${ex.slug}`;
+        link.className = `text-sm no-underline whitespace-nowrap overflow-hidden text-ellipsis transition-colors duration-150 hover:text-white/80 ${isActive ? 'text-white/80' : 'text-white/50'}`;
+        link.textContent = ex.title;
+        itemsContainer.appendChild(link);
+      });
+    }
+
+    prevBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      currentSectionIdx = (currentSectionIdx - 1 + sections.length) % sections.length;
+      renderSection(currentSectionIdx);
+    });
+
+    nextBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      currentSectionIdx = (currentSectionIdx + 1) % sections.length;
+      renderSection(currentSectionIdx);
+    });
+
+    container.addEventListener("mouseleave", () => {
+      currentSectionIdx = originalSectionIdx;
+      renderSection(currentSectionIdx);
+    });
+
+    let scrollCooldown = false;
+    container.addEventListener("wheel", (e) => {
+      if (e.shiftKey && !scrollCooldown) {
+        e.preventDefault();
+        scrollCooldown = true;
+        const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+        if (delta > 0) {
+          currentSectionIdx = (currentSectionIdx + 1) % sections.length;
+        } else if (delta < 0) {
+          currentSectionIdx = (currentSectionIdx - 1 + sections.length) % sections.length;
+        }
+        renderSection(currentSectionIdx);
+        setTimeout(() => { scrollCooldown = false; }, 50);
+      }
+    }, { passive: false });
+  }
+</script>

@@ -1,0 +1,24 @@
+---
+interface Props {
+  last?: boolean;
+  terminal?: boolean;
+}
+
+const { last = false, terminal = false } = Astro.props;
+---
+
+<tr>
+  <td class="docs pr-6 text-gray-300 text-[15px] leading-relaxed self-start [&>p]:m-0 [&>p]:p-0 [&>p]:min-h-6">
+    <slot name="docs" />
+  </td>
+  <td
+    class:list={[
+      "code bg-code-bg border-x border-white/[0.06] [&>pre]:!m-0 [&>pre]:!px-4 [&>pre]:!py-3 [&>pre]:!bg-transparent [&>pre]:!border-0 [&>pre]:!rounded-none [&_.astro-code]:!bg-transparent [&_.astro-code]:!m-0 [&>*]:!m-0",
+      !last && "[&>pre]:!pb-0",
+      last && "rounded-b-lg border-b",
+      terminal && "terminal [&_.line]:text-white/45 [&_.line_span]:!text-white/45 [&_.line.command-line_span:not(:first-child)]:!text-white/95"
+    ]}
+  >
+    <slot name="code" />
+  </td>
+</tr>

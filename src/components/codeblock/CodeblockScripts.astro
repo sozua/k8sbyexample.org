@@ -1,0 +1,93 @@
+---
+import Copy from 'lucide-astro/Copy';
+import Check from 'lucide-astro/Check';
+---
+
+<template id="icon-copy">
+  <Copy size={14} />
+</template>
+<template id="icon-check">
+  <Check size={14} />
+</template>
+
+<script is:inline>
+  (function() {
+    const COPY_FEEDBACK_MS = 1500;
+
+    function getIcon(type) {
+      const template = document.getElementById(`icon-${type}`);
+      return template?.content.firstElementChild?.cloneNode(true);
+    }
+
+    function showCopied(btn) {
+      btn.replaceChildren(getIcon('check'));
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.replaceChildren(getIcon('copy'));
+        btn.classList.remove('copied');
+      }, COPY_FEEDBACK_MS);
+    }
+
+    function copyToClipboard(text, btn) {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        console.error('Clipboard API not available');
+        return;
+      }
+      navigator.clipboard.writeText(text)
+        .then(() => showCopied(btn))
+        .catch(err => console.error('Copy failed:', err));
+    }
+
+    function handleCopyClick(e) {
+      const btn = e.target.closest('.copy-btn');
+      if (!btn) return;
+
+      const cmd = btn.getAttribute('data-cmd');
+      if (cmd) {
+        copyToClipboard(cmd, btn);
+        return;
+      }
+
+      const table = btn.closest('table');
+      if (!table) return;
+
+      const codeBlocks = table.querySelectorAll('td.code pre code');
+      let code = '';
+      codeBlocks.forEach(block => {
+        code += block.textContent + '\n';
+      });
+      copyToClipboard(code.trim(), btn);
+    }
+
+    function highlightTerminalCommands() {
+      document.querySelectorAll('td.code.terminal .line').forEach(line => {
+        const text = line.textContent;
+        if (text && text.startsWith('$')) {
+          line.classList.add('command-line');
+        }
+      });
+    }
+
+    function hideMultiCommandCopyButtons() {
+      document.querySelectorAll('table.example-table').forEach(table => {
+        const terminalCell = table.querySelector('td.code.terminal');
+        if (!terminalCell) return;
+
+        const commandLines = terminalCell.querySelectorAll('.line.command-line');
+        if (commandLines.length >= 2) {
+          const copyBtn = table.querySelector('.copy-btn');
+          if (copyBtn) {
+            copyBtn.style.display = 'none';
+          }
+        }
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      highlightTerminalCommands();
+      hideMultiCommandCopyButtons();
+    });
+
+    document.addEventListener('click', handleCopyClick);
+  })();
+</script>
