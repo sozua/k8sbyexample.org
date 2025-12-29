@@ -1,0 +1,57 @@
+---
+import Layout from '../components/Layout.astro';
+import { modules } from '../data/modules';
+import { translations } from '../data/translations';
+import { getCollection } from 'astro:content';
+
+const lang = 'en';
+const t = translations[lang];
+
+const allLessons = await getCollection('lessons');
+
+function getLessonBySlug(slug: string) {
+  return allLessons.find(e => e.slug.endsWith(slug));
+}
+---
+
+<Layout title={t.title}>
+  <main class="max-w-[560px] mx-auto mb-24 px-6 md:px-6 max-md:px-4">
+    <div class="flex justify-between items-baseline mt-12">
+      <h2 class="!m-0"><a href="/">{t.title}</a></h2>
+      <div class="flex gap-2 text-[13px]">
+        <span class="text-white/90">EN</span>
+        <a href="/pt-br" class="text-white/40 hover:text-white/90">PT</a>
+      </div>
+    </div>
+
+    <p class="mt-6 text-white/70">
+      <a href="https://kubernetes.io">Kubernetes</a> {t.intro1}
+    </p>
+
+    <p class="mt-6 text-white/70">
+      <em>{t.siteName}</em> {t.intro2}
+    </p>
+
+    {modules.map((mod) => (
+      <div class="mt-10">
+        <h3 class="text-sm font-medium uppercase tracking-wide text-white/40 mb-3">{t.modules[mod.key as keyof typeof t.modules]}</h3>
+        <ul class="list-none">
+          {mod.lessons.map((slug) => {
+            const lesson = getLessonBySlug(slug);
+            return lesson ? (
+              <li class="py-1.5">
+                <a href={`/${slug}`} class="text-white/85 font-normal hover:underline">{lesson.data.title}</a>
+              </li>
+            ) : (
+              <li class="py-1.5 text-white/40">{slug} (coming soon)</li>
+            );
+          })}
+        </ul>
+      </div>
+    ))}
+
+    <p class="mt-12 text-[13px] text-white/35">
+      {t.footer} <a href="https://gobyexample.com" class="text-white/35 hover:underline">Go by Example</a> | <a href="https://github.com/sozua/k8sbyexample.org" class="text-white/35 hover:underline">source</a> | <a href="https://creativecommons.org/licenses/by/4.0/" class="text-white/35 hover:underline">license</a>
+    </p>
+  </main>
+</Layout>

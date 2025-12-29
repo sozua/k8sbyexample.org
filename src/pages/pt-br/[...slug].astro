@@ -1,0 +1,67 @@
+---
+import Layout from '../../components/Layout.astro';
+import PrevNext from '../../components/PrevNext.astro';
+import SectionProgress from '../../components/SectionProgress.astro';
+import CodeblockScripts from '../../components/codeblock/CodeblockScripts.astro';
+import { getCollection } from 'astro:content';
+import { getAllLessons } from '../../data/modules';
+
+export async function getStaticPaths() {
+  const lessons = await getCollection('lessons-pt-br');
+  const orderedSlugs = getAllLessons();
+
+  const allLessons = lessons.map(e => ({
+    slug: e.slug.split('/').pop()!,
+    title: e.data.title,
+  }));
+
+  return lessons.map((entry) => {
+    const slug = entry.slug.split('/').pop()!;
+    const idx = orderedSlugs.indexOf(slug);
+    const prevSlug = idx > 0 ? orderedSlugs[idx - 1] : null;
+    const nextSlug = idx < orderedSlugs.length - 1 ? orderedSlugs[idx + 1] : null;
+
+    const prevLesson = prevSlug
+      ? lessons.find(e => e.slug.endsWith(prevSlug))
+      : null;
+    const nextLesson = nextSlug
+      ? lessons.find(e => e.slug.endsWith(nextSlug))
+      : null;
+
+    return {
+      params: { slug },
+      props: {
+        entry,
+        slug,
+        allLessons,
+        prev: prevLesson ? { slug: prevSlug, title: prevLesson.data.title } : null,
+        next: nextLesson ? { slug: nextSlug, title: nextLesson.data.title } : null,
+      },
+    };
+  });
+}
+
+const { entry, slug, allLessons, prev, next } = Astro.props;
+const { Content } = await entry.render();
+---
+
+<Layout title={`K8s em Exemplos: ${entry.data.title}`} lang="pt-BR" description={entry.data.description}>
+  <SectionProgress currentSlug={slug} basePath="/pt-br" allLessons={allLessons} />
+  <main class="max-w-[900px] mx-auto mb-24 px-6 max-md:px-4">
+    <h2>
+      <a href="/pt-br">K8s em Exemplos</a>: {entry.data.title}
+    </h2>
+
+    <div class="example-container">
+      <Content />
+    </div>
+    <CodeblockScripts />
+
+    <PrevNext prev={prev} next={next} basePath="/pt-br" />
+
+    <p class="mt-12 text-[13px] text-white/35">
+      <a href="/pt-br" class="text-white/35 hover:underline">Índice</a> |
+      Use as setas do teclado para navegar
+    </p>
+  </main>
+</Layout>
