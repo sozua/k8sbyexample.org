@@ -1,0 +1,222 @@
+---
+title: "Resource Requests & Limits"
+description: "Control CPU and memory allocation"
+order: 20
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Requests define the minimum resources a Pod needs. Limits define the maximum it can use. The scheduler uses requests to place Pods on nodes.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-resources.yaml" />
+    <Row last>
+      <p slot="docs">Resources are defined per container. <code>requests</code> are guaranteed and the scheduler reserves this amount. <code>limits</code> are the maximum allowed, and exceeding them triggers throttling or OOMKill.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-resources-safe.yaml" />
+    <Row last>
+      <p slot="docs">CPU is compressible: exceeding limit causes throttling. Memory is incompressible: exceeding limit causes OOMKill. Set memory limits equal to requests to avoid OOMKill surprises.</p>
+      <Fragment slot="code">
+```yaml
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="resource-units.yaml" />
+    <Row last>
+      <p slot="docs">CPU units: <code>1</code> = 1 core, <code>500m</code> = 0.5 core, <code>100m</code> = 0.1 core (millicores). Memory units: <code>Mi</code> (mebibytes), <code>Gi</code> (gibibytes). Decimal units <code>M</code>, <code>G</code> also work. Use binary units for consistency.</p>
+      <Fragment slot="code">
+```yaml
+cpu: 1
+cpu: 500m
+cpu: 100m
+cpu: "0.1"
+
+memory: 128Mi
+memory: 1Gi
+memory: 128M
+memory: 1G
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="qos-classes.yaml" />
+    <Row last>
+      <p slot="docs">QoS classes are assigned based on requests and limits. <code>Guaranteed</code> (requests = limits, first example): highest priority, last evicted. <code>Burstable</code> (requests &lt; limits, second example): medium priority. <code>BestEffort</code> (no resources): first evicted.</p>
+      <Fragment slot="code">
+```yaml
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+---
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="limit-range.yaml" />
+    <Row last>
+      <p slot="docs">LimitRange sets default, min, and max resources per namespace. Applied automatically to Pods without explicit resources. Prevents runaway resource consumption.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+  namespace: production
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 256Mi
+      max:
+        cpu: 2
+        memory: 4Gi
+      min:
+        cpu: 50m
+        memory: 64Mi
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe node node-1" />
+    <Row last terminal>
+      <p slot="docs">Node allocatable is capacity minus system reserved. Scheduler only considers allocatable when placing Pods. Sum of Pod requests must be less than node allocatable.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe node node-1 | grep -A8 "Capacity:"
+Capacity:
+  cpu:                4
+  memory:             16Gi
+  pods:               110
+Allocatable:
+  cpu:                3800m
+  memory:             15Gi
+  pods:               110
+
+$ kubectl describe node node-1 | grep -A5 "Allocated resources"
+Allocated resources:
+  Resource           Requests     Limits
+  cpu                2100m (55%)  4500m (118%)
+  memory             3Gi (20%)    6Gi (40%)
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe node node-1 | grep Conditions" />
+    <Row last terminal>
+      <p slot="docs">Eviction happens when node resources run low. Kubelet evicts Pods based on QoS class and resource usage. BestEffort first, then Burstable exceeding requests, finally Guaranteed.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe node node-1 | grep -A5 "Conditions"
+Conditions:
+  Type             Status  Reason
+  MemoryPressure   False   KubeletHasSufficientMemory
+  DiskPressure     False   KubeletHasNoDiskPressure
+  PIDPressure      False   KubeletHasSufficientPID
+
+$ kubectl get events --field-selector reason=Evicted
+LAST SEEN   TYPE      REASON    MESSAGE
+5m          Warning   Evicted   The node was low on resource: memory
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl top pods" />
+    <Row last terminal>
+      <p slot="docs">Debug resource issues by checking actual usage vs requests. Requires metrics-server. OOMKilled containers show exit code 137. High CPU throttling means limit is too low.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl top pods
+NAME        CPU(cores)   MEMORY(bytes)
+my-app-1    150m         200Mi
+my-app-2    140m         195Mi
+
+$ kubectl top nodes
+NAME     CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+node-1   2100m        55%    8Gi             50%
+
+$ kubectl get pod my-app -o jsonpath='{.spec.containers[*].resources}'
+{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}}
+
+$ kubectl get pods -o json | jq '.items[] |
+    select(.status.containerStatuses[]?.lastState.terminated.exitCode == 137) |
+    .metadata.name'
+"my-app-3"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

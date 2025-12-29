@@ -1,0 +1,242 @@
+---
+title: "Taints & Tolerations"
+description: "Repel Pods from nodes unless they tolerate specific conditions"
+order: 33
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Taints mark nodes to repel Pods; tolerations allow Pods to schedule onto tainted nodes. Unlike affinity (attracting Pods to nodes), taints work by repulsion. Use for: dedicated nodes, GPU nodes, maintenance, preventing workloads from specific hardware.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="taint-effects.yaml" />
+    <Row last>
+      <p slot="docs">Three taint effects: <code>NoSchedule</code> (new Pods won't schedule), <code>PreferNoSchedule</code> (soft preference to avoid), <code>NoExecute</code> (existing Pods evicted, new Pods won't schedule). Taints have key, value, and effect.</p>
+      <Fragment slot="code">
+```bash
+kubectl taint nodes worker-1 dedicated=gpu:NoSchedule
+
+kubectl taint nodes worker-2 preferred=lowpriority:PreferNoSchedule
+
+kubectl taint nodes worker-3 maintenance=true:NoExecute
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="toleration-exact.yaml" />
+    <Row last>
+      <p slot="docs">The <code>Equal</code> operator requires exact key and value match. This Pod can run on nodes with <code>dedicated=gpu:NoSchedule</code> taint. Without this toleration, it would be rejected.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-workload
+spec:
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "gpu"
+      effect: "NoSchedule"
+  containers:
+    - name: ml-training
+      image: ml-trainer:v1
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="toleration-exists.yaml" />
+    <Row last>
+      <p slot="docs">The <code>Exists</code> operator matches any taint with the specified key, regardless of value. Useful when you don't care about the specific taint value. Omit <code>value</code> when using <code>Exists</code>.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tolerate-any-dedicated
+spec:
+  tolerations:
+    - key: "dedicated"
+      operator: "Exists"
+      effect: "NoSchedule"
+  containers:
+    - name: app
+      image: my-app:v1
+---
+tolerations:
+  - operator: "Exists"
+    effect: "NoSchedule"
+---
+tolerations:
+  - operator: "Exists"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="toleration-seconds.yaml" />
+    <Row last>
+      <p slot="docs"><code>tolerationSeconds</code> specifies how long a Pod stays on a node after a <code>NoExecute</code> taint is applied. Useful for graceful migration during maintenance. Without it, Pods are evicted immediately.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: graceful-eviction
+spec:
+  tolerations:
+    - key: "node.kubernetes.io/not-ready"
+      operator: "Exists"
+      effect: "NoExecute"
+      tolerationSeconds: 300
+    - key: "node.kubernetes.io/unreachable"
+      operator: "Exists"
+      effect: "NoExecute"
+      tolerationSeconds: 300
+  containers:
+    - name: app
+      image: my-app:v1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="dedicated-nodes.yaml" />
+    <Row last>
+      <p slot="docs">Dedicated nodes pattern: taint nodes for specific teams/workloads. Only Pods with matching tolerations (and affinity for targeting) can run there. Prevents noisy neighbors and enables cost allocation.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: team-alpha-app
+spec:
+  template:
+    spec:
+      tolerations:
+        - key: "team"
+          operator: "Equal"
+          value: "alpha"
+          effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: team
+                    operator: In
+                    values: ["alpha"]
+      containers:
+        - name: app
+          image: team-alpha-app:v1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="maintenance-drain.yaml" />
+    <Row last>
+      <p slot="docs">Maintenance workflow: taint node with <code>NoExecute</code> to evict workloads. DaemonSets and critical Pods need tolerations to survive. After maintenance, remove the taint to allow scheduling again.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+spec:
+  template:
+    spec:
+      tolerations:
+        - key: "maintenance"
+          operator: "Exists"
+          effect: "NoExecute"
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: node-exporter
+          image: prom/node-exporter:v1.7.0
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="built-in-taints.yaml" />
+    <Row last>
+      <p slot="docs">Kubernetes adds taints automatically for node conditions. Default tolerations allow Pods 5 minutes before eviction. Override with your own tolerations. Common built-in taints handle node failures gracefully.</p>
+      <Fragment slot="code">
+```yaml
+tolerations:
+  - key: "node.kubernetes.io/not-ready"
+    operator: "Exists"
+    effect: "NoExecute"
+    tolerationSeconds: 300
+  - key: "node.kubernetes.io/unreachable"
+    operator: "Exists"
+    effect: "NoExecute"
+    tolerationSeconds: 300
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl taint nodes" />
+    <Row last terminal>
+      <p slot="docs">Manage taints with kubectl. Add taints to repel Pods, remove taints (with minus suffix) to allow scheduling. View taints in node description or get nodes output.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl taint nodes worker-1 dedicated=gpu:NoSchedule
+node/worker-1 tainted
+
+$ kubectl taint nodes worker-2 team=alpha:NoSchedule
+node/worker-2 tainted
+
+$ kubectl describe node worker-1 | grep -A3 Taints
+Taints:             dedicated=gpu:NoSchedule
+
+$ kubectl get nodes -o custom-columns=\
+NAME:.metadata.name,TAINTS:.spec.taints
+NAME       TAINTS
+worker-1   [map[effect:NoSchedule key:dedicated value:gpu]]
+worker-2   [map[effect:NoSchedule key:team value:alpha]]
+
+$ kubectl taint nodes worker-1 dedicated=gpu:NoSchedule-
+node/worker-1 untainted
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

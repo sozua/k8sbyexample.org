@@ -1,0 +1,216 @@
+---
+title: "Node Affinity"
+description: "Schedule Pods to specific nodes based on node labels"
+order: 32
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Node affinity constrains Pods to run on nodes with specific labels. Unlike nodeSelector (simple key-value matching), node affinity supports complex expressions with operators like In, NotIn, Exists, and Gt. Use for: GPU workloads, zone placement, hardware requirements, licensing constraints.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="node-affinity-required.yaml" />
+    <Row last>
+      <p slot="docs"><code>requiredDuringSchedulingIgnoredDuringExecution</code> is a hard requirement. The Pod won't schedule unless a matching node exists. Use for: hardware requirements, compliance, licensing.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-workload
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: gpu-type
+                operator: In
+                values:
+                  - nvidia-a100
+                  - nvidia-v100
+  containers:
+    - name: ml-training
+      image: ml-trainer:v1
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="node-affinity-preferred.yaml" />
+    <Row last>
+      <p slot="docs"><code>preferredDuringSchedulingIgnoredDuringExecution</code> is a soft preference. The scheduler tries to place Pods on matching nodes but will use other nodes if necessary. Weights range 1-100; higher = stronger preference.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-server
+spec:
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 80
+          preference:
+            matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                  - high-memory
+        - weight: 20
+          preference:
+            matchExpressions:
+              - key: topology.kubernetes.io/zone
+                operator: In
+                values:
+                  - us-east-1a
+  containers:
+    - name: nginx
+      image: nginx:alpine
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="node-affinity-operators.yaml" />
+    <Row last>
+      <p slot="docs">Match expressions support operators: <code>In</code> (value in list), <code>NotIn</code> (value not in list), <code>Exists</code> (key exists), <code>DoesNotExist</code> (key missing), <code>Gt</code>/<code>Lt</code> (greater/less than for numeric values).</p>
+      <Fragment slot="code">
+```yaml
+nodeSelectorTerms:
+  - matchExpressions:
+      - key: storage-type
+        operator: In
+        values: ["ssd", "nvme"]
+      - key: node-lifecycle
+        operator: NotIn
+        values: ["spot"]
+      - key: dedicated
+        operator: Exists
+      - key: cpu-count
+        operator: Gt
+        values: ["8"]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="node-affinity-zone.yaml" />
+    <Row last>
+      <p slot="docs">Zone-based scheduling using standard Kubernetes topology labels. Combine with <code>topologySpreadConstraints</code> for multi-zone high availability. The <code>topology.kubernetes.io</code> labels are set by cloud providers.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+spec:
+  replicas: 3
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/region
+                    operator: In
+                    values:
+                      - us-east-1
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - us-east-1a
+                      - us-east-1b
+      containers:
+        - name: api
+          image: api:v1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="node-affinity-combined.yaml" />
+    <Row last>
+      <p slot="docs">Combine required and preferred affinities. Required rules must match; preferred rules influence scheduling among matching nodes. Multiple terms in <code>nodeSelectorTerms</code> are OR'd; expressions within a term are AND'd.</p>
+      <Fragment slot="code">
+```yaml
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/arch
+              operator: In
+              values: ["amd64"]
+        - matchExpressions:
+            - key: kubernetes.io/arch
+              operator: In
+              values: ["arm64"]
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: instance-type
+              operator: In
+              values: ["compute-optimized"]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl label nodes" />
+    <Row last terminal>
+      <p slot="docs">Label nodes to enable affinity rules. View existing labels to understand available scheduling options. Common labels include architecture, zone, instance type, and custom labels for your workloads.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl label nodes worker-1 gpu-type=nvidia-a100
+node/worker-1 labeled
+
+$ kubectl label nodes worker-2 node-type=high-memory
+node/worker-2 labeled
+
+$ kubectl get nodes --show-labels
+NAME       STATUS   LABELS
+worker-1   Ready    gpu-type=nvidia-a100,kubernetes.io/arch=amd64
+worker-2   Ready    node-type=high-memory,kubernetes.io/arch=amd64
+
+$ kubectl get nodes -l gpu-type=nvidia-a100
+NAME       STATUS   ROLES    AGE   VERSION
+worker-1   Ready    <none>   10d   v1.28.0
+
+$ kubectl describe pod gpu-workload | grep -A5 "Node-Selectors"
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute
+Events:
+  Normal  Scheduled  Placed on worker-1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
