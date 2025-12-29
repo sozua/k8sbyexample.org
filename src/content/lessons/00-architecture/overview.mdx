@@ -1,0 +1,282 @@
+---
+title: "Overview"
+description: "The big picture: how Kubernetes components fit together"
+order: 0
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+<Intro>
+  <p>Kubernetes orchestrates containers across a cluster of machines. This guide shows how the core components fit together: Cluster, Nodes, Pods, Deployments, and Services.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="cluster-overview.txt" />
+    <Row last>
+      <p slot="docs">A <strong>Cluster</strong> is a set of machines (nodes) running Kubernetes. The Control Plane manages the cluster, worker nodes run your applications.</p>
+      <Fragment slot="code">
+```
++-----------------------------------------------------------+
+|                         CLUSTER                           |
+|                                                           |
+|  +---------------+      +---------------------------+     |
+|  | Control Plane |      |       Worker Nodes        |     |
+|  |               |      |                           |     |
+|  |  - API Server |----->|  +--------+   +--------+  |     |
+|  |  - Scheduler  |      |  | Node 1 |   | Node 2 |  |     |
+|  |  - etcd       |      |  | (Pods) |   | (Pods) |  |     |
+|  |               |      |  +--------+   +--------+  |     |
+|  +---------------+      +---------------------------+     |
+|                                                           |
++-----------------------------------------------------------+
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="node.txt" />
+    <Row last>
+      <p slot="docs">A <strong>Node</strong> is a machine (physical or virtual) in the cluster. Each node runs kubelet (agent), kube-proxy (networking), and a container runtime. Nodes host Pods.</p>
+      <Fragment slot="code">
+```
++-----------------------------------------+
+|                  NODE                   |
+|                                         |
+|  +-----------------------------------+  |
+|  | kubelet          (talks to API)   |  |
+|  | kube-proxy       (networking)     |  |
+|  | container runtime (runs pods)     |  |
+|  +-----------------------------------+  |
+|                                         |
+|  +---------+ +---------+ +---------+    |
+|  |  Pod A  | |  Pod B  | |  Pod C  |    |
+|  +---------+ +---------+ +---------+    |
+|                                         |
++-----------------------------------------+
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod.txt" />
+    <Row last>
+      <p slot="docs">A <strong>Pod</strong> is the smallest deployable unit. It wraps one or more containers that share network (same IP) and storage. Containers in a Pod communicate via localhost.</p>
+      <Fragment slot="code">
+```
++---------------------------------------+
+|                 POD                   |
+|            IP: 10.244.1.5             |
+|                                       |
+|  +-------------+   +-------------+    |
+|  |  Container  |   |  Container  |    |
+|  |    nginx    |   |   sidecar   |    |
+|  |     :80     |   |    :9090    |    |
+|  +-------------+   +-------------+    |
+|         ^                 ^           |
+|         +--- localhost ---+           |
+|                                       |
+|  +----------------------------------+ |
+|  |          Shared Volume           | |
+|  +----------------------------------+ |
++---------------------------------------+
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="deployment-replicaset-pod.txt" />
+    <Row last>
+      <p slot="docs"><strong>Deployment</strong> manages <strong>ReplicaSets</strong>, which ensure N copies of a Pod run. You define desired state, Kubernetes maintains it. Deployments handle rolling updates.</p>
+      <Fragment slot="code">
+```
++-----------------------------------------------+
+|                  DEPLOYMENT                   |
+|                  replicas: 3                  |
+|                                               |
+|  +-----------------------------------------+  |
+|  |               REPLICASET                |  |
+|  |                                         |  |
+|  |  +---------+ +---------+ +---------+    |  |
+|  |  |   Pod   | |   Pod   | |   Pod   |    |  |
+|  |  |  nginx  | |  nginx  | |  nginx  |    |  |
+|  |  +---------+ +---------+ +---------+    |  |
+|  |                                         |  |
+|  +-----------------------------------------+  |
+|                                               |
++-----------------------------------------------+
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="service.txt" />
+    <Row last>
+      <p slot="docs">A <strong>Service</strong> provides a stable IP and DNS name to access Pods. Pods are ephemeral (they come and go), but Services give a fixed endpoint. Load balances across matching Pods.</p>
+      <Fragment slot="code">
+```
+                +-----------------+
+                |     SERVICE     |
+ requests ----->|  nginx-service  |
+                |   10.96.0.100   |
+                +--------+--------+
+                         |
+         +---------------+---------------+
+         |               |               |
+         v               v               v
+   +------------+   +------------+   +------------+
+   |     Pod    |   |     Pod    |   |     Pod    |
+   |    nginx   |   |    nginx   |   |    nginx   |
+   | 10.244.1.5 |   | 10.244.2.3 |   | 10.244.3.7 |
+   +------------+   +------------+   +------------+
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="namespace.txt" />
+    <Row last>
+      <p slot="docs"><strong>Namespaces</strong> divide a cluster into virtual clusters. Use them to separate teams, environments (dev/prod), or projects. Resources in different namespaces are isolated by default.</p>
+      <Fragment slot="code">
+```
++-------------------------------------------------+
+|                    CLUSTER                      |
+|                                                 |
+|  +---------------+     +---------------+        |
+|  |  namespace:   |     |  namespace:   |        |
+|  |     dev       |     |     prod      |        |
+|  |               |     |               |        |
+|  | +-----------+ |     | +-----------+ |  same  |
+|  | | nginx-svc | |     | | nginx-svc | |  names |
+|  | | nginx-pod | |     | | nginx-pod | |        |
+|  | +-----------+ |     | +-----------+ |        |
+|  |               |     |               |        |
+|  +---------------+     +---------------+        |
+|                                                 |
++-------------------------------------------------+
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="labels-selectors.txt" />
+    <Row last>
+      <p slot="docs"><strong>Labels</strong> are key-value tags on resources. <strong>Selectors</strong> find resources by labels. This is how Services find Pods, and how you organize resources.</p>
+      <Fragment slot="code">
+```
+    Service selector: app=nginx
+                      |
+        +-------------+-------------+
+        |             |             |
+        v             v             v
+  +-----------+ +-----------+ +-----------+
+  |    Pod    | |    Pod    | |    Pod    |
+  | app=nginx | | app=nginx | | app=redis |
+  +-----------+ +-----------+ +-----------+
+       [x]           [x]       [ ] not selected
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="configmap-secret.txt" />
+    <Row last>
+      <p slot="docs"><strong>ConfigMap</strong> stores configuration (env vars, config files). <strong>Secret</strong> stores sensitive data (passwords, tokens). Both inject data into Pods without hardcoding.</p>
+      <Fragment slot="code">
+```
++----------------+     +----------------+
+|   ConfigMap    |     |     Secret     |
+|                |     |                |
+| DB_HOST=mysql  |     | DB_PASS=****   |
+| LOG_LEVEL=info |     | API_KEY=****   |
++-------+--------+     +-------+--------+
+        |                      |
+        +----------+-----------+
+                   |
+                   v
+            +-------------+
+            |     Pod     |
+            |             |
+            | DB_HOST     | <- ConfigMap
+            | DB_PASS     | <- Secret
+            +-------------+
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="full-picture.txt" />
+    <Row last>
+      <p slot="docs">Putting it all together: Deployments manage Pods, Services expose them, ConfigMaps/Secrets configure them, all organized in Namespaces.</p>
+      <Fragment slot="code">
+```
++---------------- namespace: production ----------------+
+|                                                       |
+|  +-------------+    +---------------------------+     |
+|  |  ConfigMap  |    |        Deployment         |     |
+|  |  Secret     |--->|  +-----+ +-----+ +-----+  |     |
+|  +-------------+    |  | Pod | | Pod | | Pod |  |     |
+|                     |  +-----+ +-----+ +-----+  |     |
+|                     +-------------+-------------+     |
+|                                   |                   |
+|                          +--------+--------+          |
+|                          |     Service     |          |
+|     users -------------->|   (ClusterIP)   |          |
+|                          +-----------------+          |
+|                                                       |
++-------------------------------------------------------+
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get all" />
+    <Row last terminal>
+      <p slot="docs">See all main resources in the current namespace. This shows Pods, Services, Deployments, and ReplicaSets at a glance.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get all
+NAME                         READY   STATUS    RESTARTS   AGE
+pod/nginx-6799fc88d8-7xj2k   1/1     Running   0          5m
+pod/nginx-6799fc88d8-9abc2   1/1     Running   0          5m
+pod/nginx-6799fc88d8-def34   1/1     Running   0          5m
+
+NAME                 TYPE        CLUSTER-IP     PORT(S)   AGE
+service/nginx        ClusterIP   10.96.100.50   80/TCP    5m
+
+NAME                    READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/nginx   3/3     3            3           5m
+
+NAME                               DESIRED   CURRENT   READY   AGE
+replicaset.apps/nginx-6799fc88d8   3         3         3       5m
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>

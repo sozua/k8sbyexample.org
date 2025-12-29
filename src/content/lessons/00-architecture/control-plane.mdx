@@ -1,0 +1,222 @@
+---
+title: "Control Plane"
+description: "The brain of Kubernetes: API Server, etcd, Scheduler, Controllers"
+order: 1
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>The control plane makes global decisions about the cluster. It consists of: API Server (communication hub), etcd (state store), Scheduler (Pod placement), Controller Manager (reconciliation loops). Usually runs on dedicated nodes.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="architecture.txt" />
+    <Row last>
+      <p slot="docs">All components communicate through the API Server. etcd stores state, Scheduler places Pods, Controllers reconcile state.</p>
+      <Fragment slot="code">
+```
+┌─────────────────────────────────────────────────────┐
+│                   Control Plane                     │
+│  ┌──────────┐  ┌───────────┐  ┌──────────────────┐  │
+│  │   etcd   │  │    API    │  │    Controller    │  │
+│  │ (state)  │◄─┤   Server  │◄─┤     Manager      │  │
+│  └──────────┘  └─────┬─────┘  └──────────────────┘  │
+│                      │        ┌──────────────────┐  │
+│                      │        │    Scheduler     │  │
+│                      └───────►│  (Pod placement) │  │
+│                               └──────────────────┘  │
+└─────────────────────────────────────────────────────┘
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods" />
+    <Row last terminal>
+      <p slot="docs">The API Server is the front door to Kubernetes. All components communicate through it. It validates requests, updates etcd, and exposes the REST API.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods
+NAME    READY   STATUS    RESTARTS   AGE
+nginx   1/1     Running   0          5m
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get --raw='/healthz'" />
+    <Row last terminal>
+      <p slot="docs">Check API Server health with raw endpoints. The proxy command exposes the API locally for direct REST calls.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get --raw='/healthz'
+ok
+
+$ kubectl get --raw='/readyz'
+ok
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="etcdctl endpoint health" />
+    <Row last terminal>
+      <p slot="docs">etcd stores all cluster state - Pods, Services, Secrets, ConfigMaps. Distributed key-value store using Raft consensus. Always run multiple replicas.</p>
+      <Fragment slot="code">
+```bash
+$ etcdctl endpoint health
+127.0.0.1:2379 is healthy: committed proposal: took = 1.5ms
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="etcdctl snapshot save backup.db" />
+    <Row last terminal>
+      <p slot="docs">Back up etcd regularly. Keys follow the format: <code>/registry/&lt;resource-type&gt;/&lt;namespace&gt;/&lt;name&gt;</code>.</p>
+      <Fragment slot="code">
+```bash
+$ etcdctl snapshot save backup.db \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+  --cert=/etc/kubernetes/pki/etcd/server.crt \
+  --key=/etc/kubernetes/pki/etcd/server.key
+Snapshot saved at backup.db
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="scheduler-workflow.txt" />
+    <Row>
+      <p slot="docs">The Scheduler assigns Pods to nodes. It watches for unscheduled Pods, filters nodes by constraints, scores remaining nodes, then binds Pod to best node.</p>
+      <Fragment slot="code">
+```
+Filtering (hard constraints):
+- Resource requests fit available
+- Node selectors match
+- Taints tolerated
+- Affinity rules satisfied
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Scoring ranks nodes by soft preferences. Highest score wins.</p>
+      <Fragment slot="code">
+```
+Scoring (soft preferences):
+- Resource balance across nodes
+- Pod topology spread
+- Node affinity preferences
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe pod nginx | grep -A10 Events" />
+    <Row last terminal>
+      <p slot="docs">View scheduler decisions in Pod events. If a Pod is Pending, check events for why no node was selected.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe pod nginx | grep -A10 Events
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  10s   default-scheduler  Successfully assigned default/nginx to node-1
+  Normal  Pulled     8s    kubelet            Container image "nginx" already present
+  Normal  Created    8s    kubelet            Created container nginx
+  Normal  Started    7s    kubelet            Started container nginx
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="controllers.txt" />
+    <Row last>
+      <p slot="docs">Controller Manager runs control loops that watch state and reconcile current state toward desired state. Each controller handles one resource type.</p>
+      <Fragment slot="code">
+```
+Controllers in kube-controller-manager:
+- Deployment controller    → manages ReplicaSets
+- ReplicaSet controller    → ensures Pod count
+- Node controller          → monitors node health
+- Service controller       → creates cloud LBs
+- Endpoint controller      → populates Endpoints
+- Job controller           → runs to completion
+- StatefulSet controller   → ordered Pod management
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="cloud-controllers.txt" />
+    <Row last>
+      <p slot="docs">Cloud Controller Manager handles cloud-specific logic. Separated so cloud providers can release independently. Manages load balancers, routes, and node lifecycle.</p>
+      <Fragment slot="code">
+```
+Cloud Controller Manager:
+- Node controller     → checks node exists in cloud
+- Route controller    → configures cloud network routes
+- Service controller  → creates/updates cloud load balancers
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="ha-control-plane.txt" />
+    <Row last>
+      <p slot="docs">High availability requires 3+ control plane nodes. API Servers run behind a load balancer. etcd needs odd number for quorum. Scheduler and Controller Manager use leader election.</p>
+      <Fragment slot="code">
+```
+HA Control Plane (3 nodes minimum):
+
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│   Node 1     │  │   Node 2     │  │   Node 3     │
+│ ┌──────────┐ │  │ ┌──────────┐ │  │ ┌──────────┐ │
+│ │API Server│ │  │ │API Server│ │  │ │API Server│ │
+│ └────┬─────┘ │  │ └────┬─────┘ │  │ └────┬─────┘ │
+│ ┌────┴─────┐ │  │ ┌────┴─────┐ │  │ ┌────┴─────┐ │
+│ │   etcd   │◄┼──┼►│   etcd   │◄┼──┼►│   etcd   │ │
+│ └──────────┘ │  │ └──────────┘ │  │ └──────────┘ │
+│ Scheduler(L) │  │ Scheduler    │  │ Scheduler    │
+│ Controller(L)│  │ Controller   │  │ Controller   │
+└──────────────┘  └──────────────┘  └──────────────┘
+    (L) = Leader
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
