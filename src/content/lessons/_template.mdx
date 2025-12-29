@@ -1,0 +1,64 @@
+---
+title: "Your Title Here"
+description: "Brief description of the topic"
+order: 1
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Introduction text that spans the full width. Explain what this topic is about.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="example.yaml" />
+    <Row>
+      <p slot="docs">Explanation of the API version and kind.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: ConfigMap
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">Explanation of the metadata section.</p>
+      <Fragment slot="code">
+```yaml
+metadata:
+  name: my-config
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Explanation of the data section.</p>
+      <Fragment slot="code">
+```yaml
+data:
+  key: value
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get configmaps" />
+    <Row last terminal>
+      <p slot="docs">Explanation of the command and what it does.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get configmaps
+NAME        DATA   AGE
+my-config   1      5m
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
