@@ -1,0 +1,201 @@
+---
+title: "Probes de Vivacidade"
+description: "Detecte e reinicie containers com problemas"
+order: 16
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Liveness probes detectam containers quebrados. Se a probe falhar consecutivamente (failureThreshold vezes), Kubernetes mata e reinicia o container. Use para: deadlocks, memory leaks, erros irrecuperáveis.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-liveness.yaml" />
+    <Row last>
+      <p slot="docs">HTTP probe é saudável se status da resposta é 200-399. <code>initialDelaySeconds</code> aguarda antes da primeira probe. <code>periodSeconds</code> define intervalo da probe. <code>failureThreshold</code> é falhas consecutivas antes de reiniciar.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 8080
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-liveness-headers.yaml" />
+    <Row last>
+      <p slot="docs">HTTP probes podem incluir headers customizados para autenticação ou roteamento. Use <code>scheme: HTTPS</code> para endpoints TLS.</p>
+      <Fragment slot="code">
+```yaml
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+    scheme: HTTP
+    httpHeaders:
+      - name: X-Custom-Header
+        value: probe
+      - name: Authorization
+        value: Bearer token
+  initialDelaySeconds: 45
+  periodSeconds: 30
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-liveness-tcp.yaml" />
+    <Row last>
+      <p slot="docs">TCP probe é saudável se porta aceita conexões. Use quando HTTP não está disponível (bancos de dados, filas de mensagem, Redis). Não verifica se o serviço está funcionando corretamente - apenas se está escutando.</p>
+      <Fragment slot="code">
+```yaml
+livenessProbe:
+  tcpSocket:
+    port: 5432
+  initialDelaySeconds: 15
+  periodSeconds: 20
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-liveness-exec.yaml" />
+    <Row last>
+      <p slot="docs">Exec probe é saudável se comando sai com 0. Use para lógica de health customizada ou serviços sem endpoints HTTP. Cuidado com uso de recursos - exec roda no container.</p>
+      <Fragment slot="code">
+```yaml
+livenessProbe:
+  exec:
+    command:
+      - sh
+      - -c
+      - pg_isready -U postgres
+  initialDelaySeconds: 30
+  periodSeconds: 10
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-startup-probe.yaml" />
+    <Row last>
+      <p slot="docs">Startup probes substituem liveness durante startup do container. Use para apps de inicialização lenta ao invés de initialDelaySeconds longo. Liveness probe só inicia após startup probe ter sucesso. Este exemplo permite até 5 minutos (30 × 10s) para startup.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      startupProbe:
+        httpGet:
+          path: /health
+          port: 8080
+        failureThreshold: 30
+        periodSeconds: 10
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 8080
+        periodSeconds: 10
+        failureThreshold: 3
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-probe-params.yaml" />
+    <Row last>
+      <p slot="docs">Parâmetros de probe: <code>failureThreshold</code> é falhas consecutivas antes de ação. <code>successThreshold</code> é sucessos consecutivos para recuperar (apenas para readiness). <code>timeoutSeconds</code> deve ser menor que periodSeconds.</p>
+      <Fragment slot="code">
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 45
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+  successThreshold: 1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-liveness-best.yaml" />
+    <Row last>
+      <p slot="docs">Erro comum: liveness probe muito agressiva causa loops de restart. Se sua app leva tempo para processar requisições, aumente timeoutSeconds. Se startup é lento, use startupProbe. Seja tolerante - não reinicie em falhas transientes.</p>
+      <Fragment slot="code">
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods" />
+    <Row last terminal>
+      <p slot="docs">Debug falhas de probe com events e logs. Restarts de container incrementam o contador RESTARTS. Verifique endpoint da probe diretamente com kubectl exec ou port-forward.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods
+NAME     READY   STATUS    RESTARTS   AGE
+my-app   1/1     Running   3          10m
+
+$ kubectl describe pod my-app | grep -A5 "Liveness probe failed"
+Warning  Unhealthy  2m  Liveness probe failed: HTTP probe failed
+Warning  Unhealthy  1m  Liveness probe failed: HTTP probe failed
+
+$ kubectl exec my-app -- curl -v localhost:8080/health
+< HTTP/1.1 500 Internal Server Error
+
+$ kubectl port-forward pod/my-app 8080:8080
+$ curl localhost:8080/health
+{"status": "unhealthy", "reason": "database connection failed"}
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

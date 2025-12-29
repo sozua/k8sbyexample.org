@@ -1,0 +1,233 @@
+---
+title: "Graceful Shutdown"
+description: "Lide com terminação de Pods corretamente para evitar requisições perdidas"
+order: 24
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Graceful shutdown garante que requisições em andamento completem antes de um Pod terminar. Quando Kubernetes envia SIGTERM, apps devem parar de aceitar novas requisições, finalizar as existentes, e sair. O terminationGracePeriodSeconds define o prazo. Use para: deploys sem downtime, prevenir perda de dados, tratamento limpo de conexões.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="graceful-shutdown-basic.yaml" />
+    <Row last>
+      <p slot="docs">O <code>terminationGracePeriodSeconds</code> dá tempo para sua app desligar graciosamente. Padrão é 30 segundos. Após este período, Kubernetes envia SIGKILL. Configure maior que sua requisição mais longa.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-server
+spec:
+  terminationGracePeriodSeconds: 60
+  containers:
+    - name: app
+      image: my-app:v1
+      ports:
+        - containerPort: 8080
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="prestop-hook.yaml" />
+    <Row>
+      <p slot="docs">Um hook preStop executa antes do SIGTERM ser enviado. Use para desregistrar do service discovery, drenar conexões, ou notificar load balancers. O sleep dá tempo para endpoints atualizarem antes do shutdown começar.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-server
+spec:
+  terminationGracePeriodSeconds: 60
+  containers:
+    - name: app
+      image: my-app:v1
+      ports:
+        - containerPort: 8080
+      lifecycle:
+        preStop:
+          exec:
+            command:
+              - /bin/sh
+              - -c
+              - sleep 10
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">O sleep no preStop resolve uma condição de corrida: terminação do Pod e remoção de endpoint acontecem concorrentemente. O sleep garante que kube-proxy atualize antes de sua app parar de aceitar conexões.</p>
+      <Fragment slot="code">
+```yaml
+lifecycle:
+  preStop:
+    httpGet:
+      path: /prestop
+      port: 8080
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="shutdown-sequence.yaml" />
+    <Row last>
+      <p slot="docs">Deployment completo com consciência de shutdown. A app trata SIGTERM parando novas conexões, esperando requisições em andamento, fechando conexões de banco, e saindo limpamente. Combinado com hook preStop e período de graça suficiente.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-server
+  template:
+    metadata:
+      labels:
+        app: api-server
+    spec:
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: api
+          image: api-server:v1
+          ports:
+            - containerPort: 8080
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 15"]
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            periodSeconds: 5
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="connection-draining.yaml" />
+    <Row last>
+      <p slot="docs">Para conexões de longa duração (WebSockets, gRPC streams), configure drenagem de conexões. A app rastreia conexões ativas e espera elas fecharem naturalmente ou dá timeout durante shutdown.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: websocket-server
+spec:
+  template:
+    spec:
+      terminationGracePeriodSeconds: 300
+      containers:
+        - name: ws
+          image: websocket-server:v1
+          env:
+            - name: SHUTDOWN_TIMEOUT
+              value: "280"
+            - name: CONNECTION_DRAIN_TIMEOUT
+              value: "60"
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    curl -X POST localhost:8080/admin/drain
+                    sleep 15
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="job-graceful-shutdown.yaml" />
+    <Row last>
+      <p slot="docs">Jobs e workloads batch também precisam de graceful shutdown. Se terminado no meio do processamento, o job deve fazer checkpoint do progresso ou marcar itens para retry. O activeDeadlineSeconds limita o tempo total de execução.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: batch-processor
+spec:
+  activeDeadlineSeconds: 3600
+  template:
+    spec:
+      terminationGracePeriodSeconds: 300
+      restartPolicy: OnFailure
+      containers:
+        - name: processor
+          image: batch-processor:v1
+          env:
+            - name: CHECKPOINT_DIR
+              value: "/data/checkpoints"
+            - name: GRACEFUL_SHUTDOWN_TIMEOUT
+              value: "290"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: batch-data
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe pod web-server" />
+    <Row last terminal>
+      <p slot="docs">Monitore comportamento de shutdown nos eventos do Pod. Procure por execução do hook preStop, timing do SIGTERM, e se o container saiu limpamente ou foi morto após período de graça.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl delete pod web-server
+pod "web-server" deleted
+
+$ kubectl describe pod web-server
+Events:
+  Type    Reason     Message
+  ----    ------     -------
+  Normal  Killing    Stopping container app
+  Normal  PreStop    Executing preStop hook
+
+$ kubectl get pod web-server -w
+NAME         READY   STATUS        RESTARTS   AGE
+web-server   1/1     Terminating   0          1h
+web-server   0/1     Terminating   0          1h
+
+$ kubectl logs web-server --previous
+2024-01-15T10:30:00Z SIGTERM received, starting graceful shutdown
+2024-01-15T10:30:00Z Stopped accepting new connections
+2024-01-15T10:30:05Z Waiting for 3 in-flight requests
+2024-01-15T10:30:08Z All requests completed, exiting
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

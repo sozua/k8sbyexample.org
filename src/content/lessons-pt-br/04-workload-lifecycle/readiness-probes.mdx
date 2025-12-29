@@ -1,0 +1,194 @@
+---
+title: "Probes de Prontidão"
+description: "Controle quando Pods recebem tráfego"
+order: 17
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Readiness probes controlam quando um Pod recebe tráfego. Se a probe falha, o Pod é removido dos endpoints do Service (sem restart). Use para: warmup, carregamento de cache, verificação de dependências, load shedding.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-readiness.yaml" />
+    <Row last>
+      <p slot="docs">Readiness probes usam a mesma sintaxe que liveness probes. A diferença chave é o que acontece na falha: readiness remove dos endpoints, liveness reinicia o container.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      readinessProbe:
+        httpGet:
+          path: /ready
+          port: 8080
+        initialDelaySeconds: 10
+        periodSeconds: 5
+        failureThreshold: 3
+        successThreshold: 1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-both-probes.yaml" />
+    <Row last>
+      <p slot="docs">Readiness vs Liveness: Liveness reinicia containers quebrados. Readiness remove dos endpoints do Service (Pod continua rodando). Um Pod pode estar "vivo" mas "não pronto" - ex., aquecendo caches. Use endpoints diferentes: <code>/health</code> (básico), <code>/ready</code> (completo).</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 8080
+        initialDelaySeconds: 45
+        periodSeconds: 30
+      readinessProbe:
+        httpGet:
+          path: /ready
+          port: 8080
+        initialDelaySeconds: 10
+        periodSeconds: 5
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="deployment-readiness.yaml" />
+    <Row last>
+      <p slot="docs">Durante rolling updates, readiness controla fluxo de tráfego. Novos Pods não recebem tráfego até estarem prontos. Pods antigos continuam servindo até suficientes novos estarem prontos (controlado por maxUnavailable).</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    spec:
+      containers:
+        - name: app
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 3
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-readiness-deps.yaml" />
+    <Row last>
+      <p slot="docs">Verifique dependências na readiness probe. Pod fica não pronto se banco de dados ou cache está indisponível. Isso habilita load shedding quando serviços downstream falham.</p>
+      <Fragment slot="code">
+```yaml
+readinessProbe:
+  exec:
+    command:
+      - sh
+      - -c
+      - |
+        nc -z postgres 5432 &&
+        nc -z redis 6379 &&
+        curl -sf http://localhost:8080/ready
+  initialDelaySeconds: 5
+  periodSeconds: 10
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-readiness-threshold.yaml" />
+    <Row last>
+      <p slot="docs"><code>successThreshold</code> determina quantos sucessos consecutivos são necessários para marcar Pod pronto novamente após falhas. Útil para dependências instáveis. Liveness sempre usa successThreshold=1.</p>
+      <Fragment slot="code">
+```yaml
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8080
+  periodSeconds: 5
+  failureThreshold: 3
+  successThreshold: 2
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-readiness-gates.yaml" />
+    <Row last>
+      <p slot="docs">ReadinessGates adicionam condições customizadas para readiness do Pod além de probes. Controllers externos definem estas condições. Pod não fica pronto até todos os gates serem True. Útil para validação customizada.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  readinessGates:
+    - conditionType: "custom.io/ready"
+  containers:
+    - name: app
+      readinessProbe:
+        httpGet:
+          path: /ready
+          port: 8080
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get endpoints my-service" />
+    <Row last terminal>
+      <p slot="docs">Debug problemas de readiness verificando endpoints. Se um Pod está rodando mas não está nos endpoints, readiness está falhando. Verifique path da probe e confirme que a aplicação responde corretamente.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get endpoints my-service
+NAME         ENDPOINTS                         AGE
+my-service   10.244.1.5:8080,10.244.2.3:8080   5m
+
+$ kubectl get pod my-app -o jsonpath='{.status.conditions}' | jq
+[
+  {"type": "Ready", "status": "False"},
+  {"type": "ContainersReady", "status": "False"}
+]
+
+$ kubectl get pods -w
+NAME     READY   STATUS    RESTARTS   AGE
+my-app   0/1     Running   0          30s
+my-app   1/1     Running   0          45s
+
+$ kubectl exec my-app -- curl -v localhost:8080/ready
+< HTTP/1.1 200 OK
+{"status": "ready", "cache": "warm", "db": "connected"}
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

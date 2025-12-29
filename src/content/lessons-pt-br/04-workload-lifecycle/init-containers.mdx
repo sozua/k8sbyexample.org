@@ -1,0 +1,214 @@
+---
+title: "Containers de Inicialização"
+description: "Execute tarefas de setup antes do container principal iniciar"
+order: 15
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Init containers rodam antes dos containers de app iniciarem. Eles executam sequencialmente e devem completar com sucesso. Se qualquer init container falhar, o Pod reinicia. Use para: migrations, busca de config, verificação de dependências.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-init.yaml" />
+    <Row last>
+      <p slot="docs">Init containers são definidos em <code>initContainers</code>. Eles rodam antes do array <code>containers</code> principal iniciar. Cada init container deve sair com exit 0 antes do próximo rodar.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  initContainers:
+    - name: migrations
+      image: my-app:v1
+      command: ["python", "migrate.py"]
+      envFrom:
+        - secretRef:
+            name: db-secrets
+  containers:
+    - name: app
+      image: my-app:v1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-init-sequence.yaml" />
+    <Row last>
+      <p slot="docs">Init containers rodam em ordem. Cada um deve completar (exit 0) antes do próximo iniciar. Todos init containers devem ter sucesso antes dos containers de app começarem.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  initContainers:
+    - name: step-1-migrate
+      image: my-app:v1
+      command: ["./migrate.sh"]
+    - name: step-2-seed
+      image: my-app:v1
+      command: ["./seed.sh"]
+    - name: step-3-validate
+      image: my-app:v1
+      command: ["./validate.sh"]
+  containers:
+    - name: app
+      image: my-app:v1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-init-volume.yaml" />
+    <Row last>
+      <p slot="docs">Init containers compartilham volumes com containers de app. Baixe arquivos, gere config, clone repos ou prepare dados. Volumes <code>emptyDir</code> persistem entre init e app containers.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  initContainers:
+    - name: download-assets
+      image: busybox
+      command: ["wget", "-O", "/data/config.json",
+                "https://example.com/config.json"]
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  containers:
+    - name: app
+      image: my-app:v1
+      volumeMounts:
+        - name: data
+          mountPath: /app/data
+  volumes:
+    - name: data
+      emptyDir: {}
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-wait-deps.yaml" />
+    <Row last>
+      <p slot="docs">Aguarde dependências antes de iniciar a app principal. Evita race conditions durante rollouts. Melhor que lógica de retry no código da sua aplicação.</p>
+      <Fragment slot="code">
+```yaml
+initContainers:
+  - name: wait-for-db
+    image: busybox:1.28
+    command:
+      - sh
+      - -c
+      - |
+        until nc -z postgres 5432; do
+          echo "Waiting for postgres..."
+          sleep 2
+        done
+  - name: wait-for-redis
+    image: busybox:1.28
+    command:
+      - sh
+      - -c
+      - until nc -z redis 6379; do sleep 2; done
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-init-resources.yaml" />
+    <Row last>
+      <p slot="docs">Init containers podem ter limites de recursos diferentes dos containers de app. Útil quando init precisa de mais memória (migrations) mas app precisa de menos. Limites de recursos do Pod são o máximo entre init e app containers.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  initContainers:
+    - name: heavy-migration
+      image: my-app:v1
+      command: ["./migrate.sh"]
+      resources:
+        requests:
+          memory: "512Mi"
+          cpu: "500m"
+        limits:
+          memory: "1Gi"
+  containers:
+    - name: app
+      image: my-app:v1
+      resources:
+        requests:
+          memory: "128Mi"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods" />
+    <Row last terminal>
+      <p slot="docs">Debug init containers quando Pods ficam no estado <code>Init</code>. Pod travado em <code>Init:0/2</code> significa 0 de 2 init containers completaram. Verifique logs de cada init container pelo nome.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods
+NAME     READY   STATUS     RESTARTS   AGE
+my-app   0/1     Init:1/3   0          30s
+
+$ kubectl logs my-app -c migrations
+Running database migrations...
+Migration failed: connection refused
+
+$ kubectl describe pod my-app | grep -A20 "Init Containers"
+Init Containers:
+  migrations:
+    State:      Terminated
+    Reason:     Error
+    Exit Code:  1
+
+$ kubectl describe pod my-app | grep -A10 Events
+Events:
+  Type     Reason   Message
+  Warning  Failed   Error: Init container failed
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-init-timeout.yaml" />
+    <Row last>
+      <p slot="docs">Init containers não suportam probes (liveness, readiness). Eles rodam até completar e terminam. Use exit codes apropriados e timeouts nos seus scripts init para prevenir travamento.</p>
+      <Fragment slot="code">
+```yaml
+initContainers:
+  - name: wait-for-service
+    image: busybox:1.28
+    command:
+      - sh
+      - -c
+      - |
+        timeout 60 sh -c 'until nc -z api 80; do sleep 1; done'
+        if [ $? -ne 0 ]; then
+          echo "Timeout waiting for api"
+          exit 1
+        fi
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

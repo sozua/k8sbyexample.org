@@ -1,0 +1,138 @@
+---
+title: "Startup Probes"
+description: "Lide com containers de inicialização lenta com verificações dedicadas"
+order: 23
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Startup probes indicam se a aplicação iniciou com sucesso. Enquanto o startup probe está executando, liveness e readiness probes são desabilitados. Use para: apps legados com inicialização longa, apps que carregam grandes datasets na inicialização, apps com tempo de inicialização imprevisível.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="startup-probe-basic.yaml" />
+    <Row last>
+      <p slot="docs">Um startup probe protege containers de inicialização lenta. Verifica a cada 10 segundos por até 30 tentativas (5 minutos total). Uma vez bem-sucedido, probes liveness/readiness assumem. Se falhar todas as tentativas, o container é morto.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: slow-starting-app
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      ports:
+        - containerPort: 8080
+      startupProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        failureThreshold: 30
+        periodSeconds: 10
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        periodSeconds: 10
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="startup-probe-vs-liveness.yaml" />
+    <Row last>
+      <p slot="docs"><strong>Sem startup probe:</strong> verificações liveness começam imediatamente. Se <code>initialDelaySeconds</code> for muito curto, apps lentas saudáveis são mortas. <strong>Com startup probe:</strong> liveness inicia apenas após startup ser bem-sucedido.</p>
+      <Fragment slot="code">
+```yaml
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 300
+  periodSeconds: 10
+---
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  failureThreshold: 30
+  periodSeconds: 10
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  periodSeconds: 10
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="startup-probe-exec.yaml" />
+    <Row last>
+      <p slot="docs">Startup probes exec executam comandos dentro do container. Útil para verificar se scripts de inicialização completaram, se arquivos de config existem, ou se migrações de banco terminaram. Código de saída 0 = sucesso.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-migration
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      startupProbe:
+        exec:
+          command:
+            - cat
+            - /app/initialized
+        failureThreshold: 60
+        periodSeconds: 5
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe pod slow-starting-app" />
+    <Row last terminal>
+      <p slot="docs">Monitore o progresso do startup probe nos eventos do Pod. Probes falhos mostram warnings. Uma vez que startup é bem-sucedido, eventos param e liveness/readiness assumem.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe pod slow-starting-app
+Events:
+  Type     Reason     Message
+  ----     ------     -------
+  Normal   Scheduled  Successfully assigned default/slow-starting-app
+  Normal   Started    Started container app
+  Warning  Unhealthy  Startup probe failed: connection refused
+  Warning  Unhealthy  Startup probe failed: connection refused
+  Normal   Started    Container started successfully
+
+$ kubectl get pod slow-starting-app
+NAME               READY   STATUS    RESTARTS   AGE
+slow-starting-app  1/1     Running   0          3m
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

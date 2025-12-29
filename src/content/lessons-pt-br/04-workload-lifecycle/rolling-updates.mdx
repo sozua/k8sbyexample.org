@@ -1,0 +1,121 @@
+---
+title: "Atualizações Graduais"
+description: "Deploy novas versões com zero downtime"
+order: 19
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Rolling updates substituem Pods incrementalmente. Pods antigos servem tráfego enquanto novos iniciam. Readiness probes controlam tráfego para novos Pods. Isso habilita deploys com zero downtime.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="deployment-rolling.yaml" />
+    <Row last>
+      <p slot="docs">Rolling updates são a estratégia padrão para Deployments. <code>maxUnavailable</code> controla quantos Pods podem estar down. <code>maxSurge</code> controla quantos Pods extras podem existir durante update.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  replicas: 3
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="deployment-strategy.yaml" />
+    <Row last>
+      <p slot="docs">Primeiro exemplo: rollout rápido com 25%, permite algum downtime. Segundo exemplo: <code>maxUnavailable: 0</code> garante zero downtime - novos Pods devem estar prontos antes dos antigos terminarem. Valores podem ser números absolutos ou porcentagens.</p>
+      <Fragment slot="code">
+```yaml
+rollingUpdate:
+  maxUnavailable: 25%
+  maxSurge: 25%
+---
+rollingUpdate:
+  maxUnavailable: 0
+  maxSurge: 1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl set image deployment/my-app" />
+    <Row last terminal>
+      <p slot="docs">Dispare rollout mudando o template do Pod. Tag de imagem, env vars ou labels todos disparam updates. Use <code>rollout status</code> para acompanhar progresso e <code>pause/resume</code> para deploys estilo canary.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl set image deployment/my-app app=my-app:v2.0.0
+deployment.apps/my-app image updated
+
+$ kubectl rollout status deployment/my-app
+Waiting for deployment "my-app" rollout to finish: 1 of 3 updated...
+Waiting for deployment "my-app" rollout to finish: 2 of 3 updated...
+deployment "my-app" successfully rolled out
+
+$ kubectl rollout pause deployment/my-app
+deployment.apps/my-app paused
+
+$ kubectl rollout resume deployment/my-app
+deployment.apps/my-app resumed
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl rollout history deployment/my-app" />
+    <Row last terminal>
+      <p slot="docs">Rollback instantâneo para uma revisão anterior. ReplicaSets antigos são preservados para isso. Use history para ver revisões disponíveis.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl rollout history deployment/my-app
+REVISION  CHANGE-CAUSE
+1         Initial deployment
+2         kubectl set image deployment/my-app app=my-app:v1.1.0
+3         kubectl set image deployment/my-app app=my-app:v2.0.0
+
+$ kubectl rollout undo deployment/my-app
+deployment.apps/my-app rolled back
+
+$ kubectl rollout undo deployment/my-app --to-revision=1
+deployment.apps/my-app rolled back
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="deployment-recreate.yaml" />
+    <Row last>
+      <p slot="docs">Estratégia Recreate para todos os Pods antigos antes de iniciar novos. Use quando você não pode rodar duas versões simultaneamente (incompatibilidade de schema do banco, limites de licença). Causa downtime durante updates.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  strategy:
+    type: Recreate
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
