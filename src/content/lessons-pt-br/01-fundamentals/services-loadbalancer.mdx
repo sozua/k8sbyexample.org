@@ -1,0 +1,101 @@
+---
+title: "Services (LoadBalancer)"
+description: "Exponha um Service via load balancer do provedor cloud"
+order: 8
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>LoadBalancer provisiona um load balancer externo do seu provedor cloud (AWS ELB, GCP LB, Azure LB). O tráfego é roteado para seus Pods. Funciona apenas em ambientes suportados.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="service-loadbalancer.yaml" />
+    <Row last>
+      <p slot="docs">Defina <code>type: LoadBalancer</code> para provisionar um load balancer cloud. O cloud controller cria e configura o LB automaticamente.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get svc my-app -w" />
+    <Row last terminal>
+      <p slot="docs">O IP externo aparece no status do Service uma vez provisionado. Isso pode levar alguns minutos dependendo do provedor cloud.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get svc my-app -w
+NAME     TYPE           CLUSTER-IP    EXTERNAL-IP   PORT(S)        AGE
+my-app   LoadBalancer   10.96.0.100   <pending>     80:31234/TCP   10s
+my-app   LoadBalancer   10.96.0.100   34.123.45.67  80:31234/TCP   45s
+
+$ curl http://34.123.45.67
+Hello from my-app!
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="service-lb-aws.yaml" />
+    <Row last>
+      <p slot="docs">Annotations específicas de cloud configuram o load balancer. Cada provedor tem opções diferentes para LBs internos, NLB vs ALB, etc.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl delete svc my-app" />
+    <Row last terminal>
+      <p slot="docs">Cada Service LoadBalancer cria um recurso cloud separado (deletado quando o Service é deletado). Para múltiplos services, use Ingress para compartilhar um único load balancer.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl delete svc my-app
+service "my-app" deleted
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

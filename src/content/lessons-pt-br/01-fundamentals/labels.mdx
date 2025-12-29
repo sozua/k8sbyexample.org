@@ -1,0 +1,242 @@
+---
+title: "Labels e Selectors"
+description: "Pares chave-valor para organizar e selecionar recursos"
+order: 3
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Labels são pares chave-valor anexados a recursos. Elas são a base do acoplamento flexível no Kubernetes. Services encontram Pods, Deployments gerenciam ReplicaSets, NetworkPolicies direcionam Pods - tudo via labels.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-labels.yaml" />
+    <Row>
+      <p slot="docs">Labels ficam na seção <code>metadata</code>. Use convenções de nomenclatura consistentes em seus recursos.</p>
+      <Fragment slot="code">
+```yaml
+metadata:
+  name: my-app
+  labels:
+    app.kubernetes.io/name: my-app
+    app.kubernetes.io/component: api
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Adicione labels de versão e ambiente para filtragem e estratégias de deploy.</p>
+      <Fragment slot="code">
+```yaml
+    app.kubernetes.io/version: "1.0.0"
+    environment: production
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="recommended-labels.yaml" />
+    <Row>
+      <p slot="docs">Use labels recomendadas da documentação do Kubernetes para consistência. Elas habilitam integração de ferramentas, alocação de custos e dashboards de monitoramento.</p>
+      <Fragment slot="code">
+```yaml
+labels:
+  app.kubernetes.io/name: my-app
+  app.kubernetes.io/instance: my-app-prod
+  app.kubernetes.io/version: "1.2.0"
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Labels organizacionais: <code>component</code>, <code>part-of</code>, <code>managed-by</code>. Obrigatórias para maioria das ferramentas: name, instance, version.</p>
+      <Fragment slot="code">
+```yaml
+  app.kubernetes.io/component: frontend
+  app.kubernetes.io/part-of: my-platform
+  app.kubernetes.io/managed-by: helm
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="selector.yaml" />
+    <Row>
+      <p slot="docs">Selectors de label usam lógica AND. Para um Pod corresponder, ele deve ter TODAS as labels especificadas.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  selector:
+    app: my-app
+    tier: frontend
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Pods podem ter labels extras - apenas as labels do selector precisam corresponder.</p>
+      <Fragment slot="code">
+```yaml
+metadata:
+  labels:
+    app: my-app
+    tier: frontend
+    version: v2
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="match-expressions.yaml" />
+    <Row>
+      <p slot="docs">Dois tipos de selector: <code>matchLabels</code> (igualdade) e <code>matchExpressions</code> (baseado em conjunto). Combine-os para lógica de seleção complexa.</p>
+      <Fragment slot="code">
+```yaml
+selector:
+  matchLabels:
+    app: my-app
+  matchExpressions:
+    - key: environment
+      operator: In
+      values: [staging, production]
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Operadores: <code>In</code> (valor na lista), <code>NotIn</code> (valor fora da lista), <code>Exists</code> (chave existe), <code>DoesNotExist</code> (chave ausente).</p>
+      <Fragment slot="code">
+```yaml
+    - key: tier
+      operator: NotIn
+      values: [test]
+    - key: release
+      operator: Exists
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="labels-vs-annotations.yaml" />
+    <Row>
+      <p slot="docs">Labels são para seleção e agrupamento (consultáveis). Use labels para tudo que você precisa filtrar.</p>
+      <Fragment slot="code">
+```yaml
+metadata:
+  labels:
+    app: my-app
+    environment: production
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Annotations são para metadados que ferramentas consomem (não consultáveis). Armazene descrições, owners e configs de ferramentas aqui.</p>
+      <Fragment slot="code">
+```yaml
+  annotations:
+    description: "Main API server"
+    owner: "platform-team@company.com"
+    prometheus.io/scrape: "true"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods -l app=my-app" />
+    <Row last terminal>
+      <p slot="docs">Use <code>-l</code> para filtrar por label. Suporta selectors de igualdade e baseados em conjunto.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -l app=my-app
+NAME                      READY   STATUS    AGE
+my-app-6d4f8b7c9-abc      1/1     Running   5m
+my-app-6d4f8b7c9-xyz      1/1     Running   5m
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods -l 'environment in (staging, production)'" />
+    <Row last terminal>
+      <p slot="docs">Selectors baseados em conjunto usam <code>in</code>, <code>notin</code>, e <code>!=</code> para filtragem complexa.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -l 'environment in (staging, production)'
+NAME                      READY   STATUS    AGE
+api-staging-abc           1/1     Running   10m
+api-prod-xyz              1/1     Running   2h
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods -L app,environment" />
+    <Row last terminal>
+      <p slot="docs">Use <code>-L</code> para mostrar valores de labels como colunas na saída.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -L app,environment
+NAME       READY   STATUS    APP      ENVIRONMENT
+my-app-1   1/1     Running   my-app   production
+my-app-2   1/1     Running   my-app   staging
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl label pods my-pod env=prod" />
+    <Row last terminal>
+      <p slot="docs">Adicione ou modifique labels com <code>kubectl label</code>. Use sufixo <code>-</code> para remover uma label.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl label pods my-pod env=prod
+pod/my-pod labeled
+
+$ kubectl label pods my-pod env-
+pod/my-pod unlabeled
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl label pod my-app-xyz app=other --overwrite" />
+    <Row last terminal>
+      <p slot="docs">Aviso: mudar labels em Pods em execução pode quebrar roteamento de Service ou fazer Deployments criarem novos Pods. O Pod se torna órfão de seu Deployment.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl label pod my-app-xyz app=other --overwrite
+pod/my-app-xyz labeled
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

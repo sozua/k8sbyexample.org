@@ -1,0 +1,167 @@
+---
+title: "ReplicaSets"
+description: "Mantém um conjunto estável de réplicas de Pods"
+order: 5
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Um ReplicaSet garante que N Pods idênticos estejam rodando o tempo todo. Ele implementa self-healing: se um Pod falha, o ReplicaSet cria um substituto. Você raramente cria ReplicaSets diretamente - Deployments os gerenciam.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="replicaset.yaml" />
+    <Row>
+      <p slot="docs">ReplicaSets usam a API <code>apps/v1</code>. O selector vincula o ReplicaSet aos Pods que ele gerencia.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: my-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">O template do Pod define os Pods. Labels devem corresponder ao selector.</p>
+      <Fragment slot="code">
+```yaml
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: app
+          image: my-app:v1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl delete pod my-app-abc12" />
+    <Row last terminal>
+      <p slot="docs">ReplicaSets executam um loop de reconciliação, constantemente comparando estado desejado vs estado atual. Delete um Pod e observe-o ser substituído.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl delete pod my-app-abc12 &
+$ kubectl get pods -w
+NAME           READY   STATUS        AGE
+my-app-abc12   1/1     Terminating   5m
+my-app-def34   0/1     Pending       0s
+my-app-def34   1/1     Running       2s
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get rs my-app" />
+    <Row last terminal>
+      <p slot="docs">DESIRED vs CURRENT é sempre reconciliado automaticamente. Este é o core do self-healing do Kubernetes.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get rs my-app
+NAME     DESIRED   CURRENT   READY   AGE
+my-app   3         3         3       10m
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get rs -l app=my-app" />
+    <Row last terminal>
+      <p slot="docs">Deployments criam um novo ReplicaSet para cada mudança no template do Pod. O nome do RS é deployment-name + pod-template-hash.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get rs -l app=my-app
+NAME                DESIRED   CURRENT   READY   AGE
+my-app-7d9f8b6c5d   3         3         3       10m
+my-app-5f8d9a7b3c   0         0         0       1h
+
+$ kubectl get rs my-app-7d9f8b6c5d -o jsonpath='{.metadata.labels.pod-template-hash}'
+7d9f8b6c5d
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pod my-app-abc12 -o jsonpath='{.metadata.ownerReferences}'" />
+    <Row last terminal>
+      <p slot="docs">ReplicaSets usam owner references para rastrear Pods. Quando você deleta um ReplicaSet, Kubernetes cascateia a deleção para seus Pods (todos os Pods são deletados também).</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pod my-app-abc12 -o jsonpath='{.metadata.ownerReferences}'
+[{"kind":"ReplicaSet","name":"my-app-7d9f8b6c5d",...}]
+
+$ kubectl delete rs my-app
+replicaset.apps "my-app" deleted
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="replicaset-labels.yaml" />
+    <Row last>
+      <p slot="docs">O selector vincula o ReplicaSet aos seus Pods. Pods devem ter todas as labels no selector. Labels extras no template do Pod são permitidas.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+        version: v1
+    spec:
+      containers:
+        - name: app
+          image: my-app:v1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl scale deployment my-app --replicas=5" />
+    <Row last terminal>
+      <p slot="docs">Aviso: escalar réplicas do ReplicaSet diretamente (<code>kubectl scale rs</code>) é sobrescrito pelo controller do Deployment. Sempre escale via Deployment.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl scale deployment my-app --replicas=5
+deployment.apps/my-app scaled
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

@@ -1,0 +1,343 @@
+---
+title: "Pods"
+description: "A menor unidade implantável no Kubernetes"
+order: 2
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Um Pod é a unidade atômica de agendamento no Kubernetes. Ele envolve um ou mais containers que compartilham rede e armazenamento. Containers em um Pod se comunicam via <code>localhost</code> e compartilham o mesmo endereço IP, faixa de portas e volumes.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod.yaml" />
+    <Row>
+      <p slot="docs">Pods usam a API core <code>v1</code>. O <code>kind</code> informa ao Kubernetes qual recurso criar.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">O <code>name</code> identifica unicamente o Pod dentro de seu namespace. Labels permitem seleção e agrupamento.</p>
+      <Fragment slot="code">
+```yaml
+metadata:
+  name: my-app
+  labels:
+    app: my-app
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">O array <code>spec.containers</code> define os containers. Cada um precisa de um nome e imagem.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  containers:
+    - name: app
+      image: nginx:alpine
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Exponha portas para tornar o container acessível. <code>containerPort</code> é informativo, mas útil para documentação.</p>
+      <Fragment slot="code">
+```yaml
+      ports:
+        - containerPort: 80
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods -w" />
+    <Row last terminal>
+      <p slot="docs">Estados do ciclo de vida do Pod: <code>Pending</code> (aguardando agendamento ou pull de imagem), <code>Running</code> (pelo menos um container rodando), <code>Succeeded</code> (todos containers terminaram com sucesso), <code>Failed</code> (container terminou com erro).</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -w
+NAME     READY   STATUS    RESTARTS   AGE
+my-app   0/1     Pending   0          0s
+my-app   0/1     Pending   0          1s
+my-app   0/1     ContainerCreating   0   2s
+my-app   1/1     Running   0          5s
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe pod my-app | grep -A5 Events" />
+    <Row last terminal>
+      <p slot="docs">Razões comuns para Pending incluem CPU/memória insuficiente, nenhum node compatível (affinity/taints), ou problemas no pull de imagem. Verifique os Events para detalhes.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe pod my-app | grep -A5 Events
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  10s   default-scheduler  Successfully assigned
+  Normal  Pulled     8s    kubelet            Container image pulled
+  Normal  Started    7s    kubelet            Started container app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl logs my-app" />
+    <Row last terminal>
+      <p slot="docs">Pods são efêmeros. Quando um Pod morre, ele se foi para sempre - novos Pods recebem novos IPs e identidades. Use esses comandos para debugar Pods em execução.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl logs my-app
+2024/01/15 10:30:00 [notice] nginx started
+2024/01/15 10:30:00 [notice] ready to accept connections
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl exec -it my-app -- sh" />
+    <Row last terminal>
+      <p slot="docs">Execute comandos dentro de um container em execução. Use <code>-c container-name</code> para Pods multi-container.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl exec -it my-app -- sh
+/ # hostname
+my-app
+/ # cat /etc/nginx/nginx.conf
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl run debug --image=alpine --rm -it -- sh" />
+    <Row last terminal>
+      <p slot="docs">Crie um Pod temporário de debug. A flag <code>--rm</code> o deleta quando você sai.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl run debug --image=alpine --rm -it -- sh
+If you don't see a command prompt, try pressing enter.
+/ # wget -qO- http://my-app:80
+<!DOCTYPE html>
+<html>
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="multi-container-pod.yaml" />
+    <Row>
+      <p slot="docs">O Kubernetes cria um container "pause" que mantém o namespace de rede. Containers de app se juntam a este namespace, compartilhando o mesmo IP e usando <code>localhost</code>.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-metrics
+spec:
+  containers:
+    - name: web
+      image: nginx
+      ports:
+        - containerPort: 80
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Pods multi-container são para workloads fortemente acoplados. Padrões comuns: sidecar (logging, proxies), ambassador (proxy para serviços externos), adapter (transforma saída).</p>
+      <Fragment slot="code">
+```yaml
+    - name: metrics
+      image: prom/node-exporter
+      ports:
+        - containerPort: 9100
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="sidecar-pod.yaml" />
+    <Row>
+      <p slot="docs">O padrão sidecar usa um volume compartilhado. A aplicação principal escreve logs, e o container sidecar os envia.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-sidecar
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      ports:
+        - containerPort: 8080
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">O sidecar lê do mesmo volume e encaminha logs para sua infraestrutura de logging.</p>
+      <Fragment slot="code">
+```yaml
+    - name: log-shipper
+      image: fluent-bit:latest
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs"><code>emptyDir</code> cria um diretório temporário que é compartilhado entre containers e deletado quando o Pod termina.</p>
+      <Fragment slot="code">
+```yaml
+  volumes:
+    - name: logs
+      emptyDir: {}
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-resources.yaml" />
+    <Row>
+      <p slot="docs">Requests e limits de recursos controlam alocação de CPU/memória. Sem limits, um Pod pode consumir todos os recursos do node.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-resources
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs"><code>requests</code> são recursos garantidos usados para agendamento. <code>limits</code> são o máximo permitido. CPU é em millicores (100m = 0.1 cores).</p>
+      <Fragment slot="code">
+```yaml
+      resources:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "256Mi"
+          cpu: "500m"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pod my-app -o yaml" />
+    <Row last terminal>
+      <p slot="docs">O deploy do Pod é atômico - ou todos os containers iniciam com sucesso, ou o Pod falha. Veja o spec completo do Pod com <code>-o yaml</code>.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pod my-app -o yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-app
+  namespace: default
+status:
+  phase: Running
+  podIP: 10.244.1.5
+  conditions:
+    - type: Ready
+      status: "True"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pod my-app -o wide" />
+    <Row last terminal>
+      <p slot="docs">Todo Pod recebe um IP único interno ao cluster. Pods podem se comunicar diretamente com qualquer outro Pod usando seu IP - sem NAT necessário.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pod my-app -o wide
+NAME     READY   STATUS    IP           NODE
+my-app   1/1     Running   10.244.1.5   worker-1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl exec debug -- wget -qO- 10.244.1.5:80" />
+    <Row last terminal>
+      <p slot="docs">Esta é a base do modelo de rede flat do Kubernetes. Todos os Pods podem alcançar uns aos outros diretamente por IP.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl exec debug -- wget -qO- 10.244.1.5:80
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl logs my-app --previous" />
+    <Row last terminal>
+      <p slot="docs">Veja logs de uma instância anterior do container. Útil quando um container crashou e reiniciou.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl logs my-app --previous
+2024/01/15 10:29:00 [error] out of memory
+2024/01/15 10:29:00 [notice] nginx shutting down
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
