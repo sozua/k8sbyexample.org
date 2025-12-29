@@ -1,0 +1,234 @@
+---
+title: "Reivindicações de Volume Persistente"
+description: "Solicite e use storage persistente em Pods"
+order: 36
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>PersistentVolumeClaims (PVCs) solicitam storage do cluster. Pods usam PVCs para acessar PVs sem conhecer detalhes de storage. O control plane vincula PVCs a PVs adequados baseado em tamanho, access mode e storage class.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pvc.yaml" />
+    <Row last>
+      <p slot="docs">PVC especifica requisitos de storage. <code>accessModes</code> define como o volume pode ser montado. <code>storageClassName</code> seleciona o tier de storage. O control plane encontra um PV correspondente.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pvc-binding.yaml" />
+    <Row last>
+      <p slot="docs">Binding de PVC corresponde PVCs a PVs. O control plane encontra um PV com: capacidade suficiente (PVC solicita 5Gi, pode vincular a PV de 10Gi), access modes correspondentes, storageClassName correspondente. Uma vez vinculado, o relacionamento é exclusivo.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-pvc.yaml" />
+    <Row last>
+      <p slot="docs">Use PVCs em Pods via volume mounts. Múltiplos Pods podem referenciar o mesmo PVC se access mode permitir (RWX). O PVC deve existir antes do Pod iniciar, ou Pod fica Pending.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      volumeMounts:
+        - name: data
+          mountPath: /var/lib/data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: app-data
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pvc-dynamic.yaml" />
+    <Row last>
+      <p slot="docs">Provisionamento dinâmico cria PVs automaticamente quando PVC é criado. Control plane vê PVC com storageClassName, chama provisioner, cria volume cloud (ex: AWS EBS), cria PV, vincula PVC ao novo PV. Sem necessidade de pré-criar PVs.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dynamic-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: gp3
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pvc-expansion.yaml" />
+    <Row last>
+      <p slot="docs">Expansão de volume permite crescer PVCs. StorageClass deve ter <code>allowVolumeExpansion: true</code>. Edite o PVC para solicitar mais storage. Alguns tipos de storage requerem restart do Pod. Encolhimento não é suportado.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: expandable
+provisioner: ebs.csi.aws.com
+allowVolumeExpansion: true
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pvc-selector.yaml" />
+    <Row last>
+      <p slot="docs">Selector vincula PVCs a PVs específicos usando labels. Primeiro: PV com labels. Segundo: PVC com selector correspondendo a essas labels. Útil quando você precisa de um PV particular (dados pré-provisionados, tier de performance específico). Bypassa correspondência normal baseada em capacidade.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: fast-ssd
+  labels:
+    type: ssd
+    environment: prod
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes: [ReadWriteOnce]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prod-data
+spec:
+  selector:
+    matchLabels:
+      type: ssd
+      environment: prod
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 50Gi
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pvc-clone.yaml" />
+    <Row last>
+      <p slot="docs">Data sources clonam PVCs existentes ou restauram de snapshots. Primeiro exemplo: clone de PVC existente. Segundo exemplo: restaurar de VolumeSnapshot. Ambos requerem suporte do driver CSI.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cloned-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+  dataSource:
+    kind: PersistentVolumeClaim
+    name: original-data
+---
+spec:
+  dataSource:
+    kind: VolumeSnapshot
+    name: data-snapshot
+    apiGroup: snapshot.storage.k8s.io
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pvc" />
+    <Row last terminal>
+      <p slot="docs">Debug problemas de PVC verificando status, eventos e storage class. PVCs Pending geralmente significam: nenhum PV correspondente, access mode errado, storage class não existe, ou provisioner falhou.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pvc
+NAME       STATUS   VOLUME    CAPACITY   ACCESS MODES   AGE
+app-data   Bound    pv-data   10Gi       RWO            5m
+db-data    Pending  <none>    <none>     RWO            2m
+
+$ kubectl describe pvc db-data
+Events:
+  Type     Reason              Message
+  Warning  ProvisioningFailed  waiting for first consumer
+
+$ kubectl patch pvc app-data \
+    -p '{"spec":{"resources":{"requests":{"storage":"50Gi"}}}}'
+persistentvolumeclaim/app-data patched
+
+$ kubectl describe pvc app-data | grep -A5 Conditions
+Conditions:
+  Type: FileSystemResizePending
+  Status: True
+  Message: Waiting for user to restart pod
+
+$ kubectl get storageclass
+NAME                 PROVISIONER          DEFAULT
+standard             ebs.csi.aws.com      Yes
+fast-ssd             ebs.csi.aws.com
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

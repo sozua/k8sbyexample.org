@@ -1,0 +1,192 @@
+---
+title: "Volumes Persistentes"
+description: "Recursos de storage cluster-wide para dados persistentes"
+order: 35
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>PersistentVolumes (PVs) são recursos de storage cluster-wide provisionados por admins ou dinamicamente. Eles abstraem o storage subjacente (discos cloud, NFS, local). Pods reclamam storage via PersistentVolumeClaims sem conhecer detalhes.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pv.yaml" />
+    <Row last>
+      <p slot="docs">PV define uma peça de storage no cluster. <code>capacity</code> especifica tamanho. <code>accessModes</code> controla como pode ser montado. <code>persistentVolumeReclaimPolicy</code> controla limpeza.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-data
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: standard
+  hostPath:
+    path: /data/pv-data
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pv-access-modes.yaml" />
+    <Row last>
+      <p slot="docs">Access modes definem como volumes podem ser montados. RWO (ReadWriteOnce): único node leitura-escrita. ROX (ReadOnlyMany): múltiplos nodes somente leitura. RWX (ReadWriteMany): múltiplos nodes leitura-escrita. RWOP (ReadWriteOncePod, 1.22+): único Pod apenas. AWS EBS/Azure Disk: apenas RWO. NFS: RWO, ROX, RWX.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  accessModes:
+    - ReadWriteOnce
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pv-reclaim.yaml" />
+    <Row last>
+      <p slot="docs">Políticas de reclaim controlam o que acontece quando um PVC é deletado. <code>Retain</code>: PV permanece, dados preservados, limpeza manual necessária. <code>Delete</code>: PV e storage subjacente deletados automaticamente. Após deleção do PVC com Retain, status do PV muda para "Released". Admin deve deletar PV ou remover claimRef para reusar.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  persistentVolumeReclaimPolicy: Retain
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pv-cloud.yaml" />
+    <Row last>
+      <p slot="docs">Volumes de cloud provider usam fontes de volume específicas. Primeiro exemplo: AWS EBS. Segundo exemplo: GCE Persistent Disk. Terceiro exemplo: NFS. Para produção, use provisionamento dinâmico via StorageClass em vez de criar PVs manualmente.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes: [ReadWriteOnce]
+  awsElasticBlockStore:
+    volumeID: vol-0123456789abcdef0
+    fsType: ext4
+---
+spec:
+  gcePersistentDisk:
+    pdName: my-disk
+    fsType: ext4
+---
+spec:
+  nfs:
+    server: nfs-server.example.com
+    path: /exports/data
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pv-local.yaml" />
+    <Row last>
+      <p slot="docs">Node affinity restringe quais nodes podem acessar o PV. Necessário para volumes locais e alguns tipos de storage. O PV só pode ser usado por Pods agendados em nodes correspondentes.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: local-storage
+  local:
+    path: /mnt/disks/ssd1
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - node-1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pv-block.yaml" />
+    <Row last>
+      <p slot="docs">Modos de volume: <code>Filesystem</code> (padrão) monta como diretório. <code>Block</code> expõe dispositivo de bloco raw sem filesystem. Segundo exemplo mostra volume Block em Pod usando <code>volumeDevices</code> (não volumeMounts). Modo Block é para bancos de dados que gerenciam seu próprio formato de storage.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  volumeMode: Filesystem
+  capacity:
+    storage: 10Gi
+---
+spec:
+  containers:
+    - name: app
+      volumeDevices:
+        - name: data
+          devicePath: /dev/xvda
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: block-pvc
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pv" />
+    <Row last terminal>
+      <p slot="docs">Debug problemas de PV verificando status e eventos. Problemas comuns: access mode errado, mismatch de capacidade, mismatch de storage class, node affinity prevenindo binding.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pv
+NAME      CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS
+pv-data   10Gi       RWO            Retain           Available
+pv-db     50Gi       RWO            Delete           Bound
+
+$ kubectl describe pv pv-data
+
+$ kubectl patch pv pv-data -p '{"spec":{"claimRef":null}}'
+persistentvolume/pv-data patched
+
+$ kubectl get pv pv-data -o yaml | grep -A10 status
+status:
+  phase: Available
+
+$ kubectl get pvc --all-namespaces | grep Pending
+default   db-data   Pending   <none>
+
+$ kubectl get storageclass
+NAME                 PROVISIONER
+standard (default)   ebs.csi.aws.com
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

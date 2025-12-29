@@ -1,0 +1,208 @@
+---
+title: "Classes de Armazenamento"
+description: "Defina tiers de storage e habilite provisionamento dinâmico"
+order: 37
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>StorageClasses definem "tiers" de storage com diferentes performance, custo e políticas de backup. Elas habilitam provisionamento dinâmico: PVs são criados automaticamente quando PVCs solicitam aquela classe. Sem necessidade de pré-provisionamento.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="storageclass.yaml" />
+    <Row last>
+      <p slot="docs">StorageClass define como provisionar volumes. <code>provisioner</code> é o driver CSI. <code>parameters</code> configuram o tipo de storage. <code>volumeBindingMode</code> controla quando volumes são criados.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-ssd
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  iops: "3000"
+  throughput: "125"
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="storageclass-provisioners.yaml" />
+    <Row last>
+      <p slot="docs">Provisioners criam o storage real. Exemplos: AWS EBS CSI (tipos: gp2, gp3, io1, io2), Azure Disk CSI (Standard_LRS, Premium_LRS, StandardSSD_LRS), GCE PD CSI (pd-standard, pd-ssd, pd-balanced), NFS CSI. CSI (Container Storage Interface) é o padrão moderno.</p>
+      <Fragment slot="code">
+```yaml
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  encrypted: "true"
+---
+provisioner: disk.csi.azure.com
+parameters:
+  skuName: Premium_LRS
+---
+provisioner: pd.csi.storage.gke.io
+parameters:
+  type: pd-ssd
+---
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: nfs-server.example.com
+  share: /exports
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="storageclass-binding.yaml" />
+    <Row last>
+      <p slot="docs">Modos de binding de volume controlam quando PVs são criados. <code>Immediate</code>: PV criado quando PVC é criado (pode ser zone errada). <code>WaitForFirstConsumer</code>: PV criado quando Pod é agendado, garantindo mesma zone que Pod, evita problemas cross-zone, necessário para volumes locais, recomendado para storage cloud.</p>
+      <Fragment slot="code">
+```yaml
+volumeBindingMode: Immediate
+---
+volumeBindingMode: WaitForFirstConsumer
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="storageclass-params.yaml" />
+    <Row last>
+      <p slot="docs">Parameters são passados para o provisioner. Primeiro exemplo: AWS EBS com criptografia e IOPS customizado. Segundo exemplo: Azure com tier específico. Terceiro exemplo: GCE com replicação multi-zone. Verifique documentação do seu driver CSI para opções disponíveis.</p>
+      <Fragment slot="code">
+```yaml
+parameters:
+  type: io2
+  iops: "10000"
+  encrypted: "true"
+  kmsKeyId: arn:aws:kms:us-west-2:123456789:key/abcd-1234
+  fsType: ext4
+---
+parameters:
+  skuName: Premium_LRS
+  cachingMode: ReadOnly
+  fsType: ext4
+---
+parameters:
+  type: pd-ssd
+  replication-type: regional-pd
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="storageclass-reclaim.yaml" />
+    <Row last>
+      <p slot="docs">Reclaim policy na StorageClass define padrão para PVs criados dinamicamente. <code>Delete</code>: PV removido quando PVC deletado (padrão, use para dev/test). <code>Retain</code>: PV mantido (use para dados de produção que não pode perder). Políticas de reclaim de PV individual podem ser alteradas após criação.</p>
+      <Fragment slot="code">
+```yaml
+reclaimPolicy: Delete
+---
+reclaimPolicy: Retain
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="storageclass-default.yaml" />
+    <Row last>
+      <p slot="docs">StorageClass padrão é usada quando PVC não especifica <code>storageClassName</code>. Marque uma StorageClass como padrão. Apenas uma deve ser padrão por cluster para evitar confusão.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="storageclass-topology.yaml" />
+    <Row last>
+      <p slot="docs">Topologias permitidas restringem onde volumes podem ser provisionados. Volumes só criados em zones especificadas; Pods usando esta classe agendados nessas zones. Funciona com WaitForFirstConsumer para garantir que Pod e volume estejam co-localizados.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: zone-a-storage
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowedTopologies:
+  - matchLabelExpressions:
+      - key: topology.kubernetes.io/zone
+        values:
+          - us-west-2a
+          - us-west-2b
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get storageclass" />
+    <Row last terminal>
+      <p slot="docs">Debug problemas de storage verificando configuração de StorageClass e logs do provisioner. Mount options são passadas para o comando mount ao anexar o volume.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get storageclass
+NAME                 PROVISIONER             RECLAIMPOLICY
+standard (default)   ebs.csi.aws.com         Delete
+fast-ssd             ebs.csi.aws.com         Retain
+nfs-storage          nfs.csi.k8s.io          Delete
+
+$ kubectl describe storageclass fast-ssd
+Name:            fast-ssd
+Provisioner:     ebs.csi.aws.com
+Parameters:      iops=3000,throughput=125,type=gp3
+ReclaimPolicy:   Retain
+VolumeBindingMode: WaitForFirstConsumer
+
+$ kubectl patch pv pv-data \
+    -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+persistentvolume/pv-data patched
+
+$ kubectl logs -n kube-system -l app=ebs-csi-controller
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
