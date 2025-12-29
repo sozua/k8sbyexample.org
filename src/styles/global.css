@@ -1,0 +1,212 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-sans text-base md:text-base max-md:text-[15px] leading-relaxed bg-dark text-white/90 antialiased;
+  }
+
+  a {
+    @apply text-white/90 no-underline hover:underline;
+  }
+
+  em {
+    @apply italic;
+  }
+
+  strong {
+    @apply font-semibold;
+  }
+
+  h1,
+  h2 {
+    @apply text-[28px] max-md:text-2xl font-medium leading-tight mt-12 mb-6 tracking-tight;
+  }
+
+  h2 a {
+    @apply no-underline;
+  }
+
+  pre,
+  code {
+    @apply text-sm leading-relaxed font-mono;
+  }
+
+  code {
+    @apply bg-white/[0.06] px-1.5 py-0.5 rounded text-[0.9em];
+  }
+
+  pre code {
+    @apply bg-transparent p-0 rounded-none;
+  }
+
+  ::selection {
+    @apply bg-white/15;
+  }
+}
+
+/* Syntax highlighting - Dark Mode */
+:root {
+  --astro-code-color-text: rgba(255, 255, 255, 0.85);
+  --astro-code-color-background: transparent;
+  --astro-code-token-constant: #79c0ff;
+  --astro-code-token-string: #a5d6ff;
+  --astro-code-token-comment: rgba(255, 255, 255, 0.35);
+  --astro-code-token-keyword: #ff7b72;
+  --astro-code-token-parameter: #ffa657;
+  --astro-code-token-function: #d2a8ff;
+  --astro-code-token-string-expression: #a5d6ff;
+  --astro-code-token-punctuation: rgba(255, 255, 255, 0.6);
+  --astro-code-token-link: #a5d6ff;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  @apply w-2 h-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/15 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-white/25;
+}
+
+/* Grain animation */
+@keyframes grain {
+  0% {
+    background-position: 0 0;
+  }
+  10% {
+    background-position: -5% -10%;
+  }
+  20% {
+    background-position: -15% 5%;
+  }
+  30% {
+    background-position: 7% -25%;
+  }
+  40% {
+    background-position: -5% 25%;
+  }
+  50% {
+    background-position: -15% 10%;
+  }
+  60% {
+    background-position: 15% 0%;
+  }
+  70% {
+    background-position: 0% 15%;
+  }
+  80% {
+    background-position: 3% 35%;
+  }
+  90% {
+    background-position: -10% 10%;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+.animate-grain {
+  animation: grain 1.5s step-end infinite;
+}
+
+/* Background effects using pseudo-elements */
+.bg-gradient::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at top, rgba(100, 100, 100, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: -2;
+}
+
+.bg-noise::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("/images/noise-light.png");
+  opacity: 0.2;
+  pointer-events: none;
+  z-index: -1;
+  animation: grain 1.5s step-end infinite;
+}
+
+@layer components {
+  .example-table {
+    display: grid !important;
+    grid-template-columns: 40% 60%;
+    align-items: stretch;
+    width: 100%;
+    gap: 0;
+  }
+
+  /* Mobile: stack vertically with correct order */
+  @media (max-width: 768px) {
+    .example-table {
+      grid-template-columns: 1fr;
+    }
+
+    .example-table td.docs {
+      order: 1;
+      padding-right: 0;
+      padding-bottom: 1rem;
+      margin-top: 2rem;
+    }
+
+    .example-table td.header {
+      order: 2;
+    }
+
+    .example-table td.code {
+      order: 3;
+    }
+  }
+
+  .example-table tbody,
+  .example-table tr {
+    display: contents !important;
+  }
+
+  .example-table td {
+    display: block !important;
+  }
+
+  /* Code block: horizontal scroll with min-width */
+  .example-table td.code {
+    overflow-x: auto;
+  }
+
+  .example-table td.code pre {
+    min-width: max-content;
+  }
+
+  .example-table + .example-table {
+    margin-top: 4px;
+  }
+
+  .copy-btn.copied {
+    @apply text-green-400;
+  }
+}
+
+/* Focus indicators for accessibility */
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-white/60;
+}
+
+a:focus-visible {
+  @apply outline outline-2 outline-offset-2 outline-white/60 rounded;
+}
+
+button:focus-visible {
+  @apply outline outline-2 outline-offset-2 outline-white/60;
+}
