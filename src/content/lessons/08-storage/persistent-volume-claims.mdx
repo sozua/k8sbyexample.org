@@ -1,0 +1,234 @@
+---
+title: "Persistent Volume Claims"
+description: "Request and use persistent storage in Pods"
+order: 36
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>PersistentVolumeClaims (PVCs) request storage from the cluster. Pods use PVCs to access PVs without knowing storage details. The control plane binds PVCs to suitable PVs based on size, access mode, and storage class.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pvc.yaml" />
+    <Row last>
+      <p slot="docs">PVC specifies storage requirements. <code>accessModes</code> defines how the volume can be mounted. <code>storageClassName</code> selects the storage tier. The control plane finds a matching PV.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pvc-binding.yaml" />
+    <Row last>
+      <p slot="docs">PVC binding matches PVCs to PVs. The control plane finds a PV with: enough capacity (PVC requests 5Gi, can bind to 10Gi PV), matching access modes, matching storageClassName. Once bound, the relationship is exclusive.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-pvc.yaml" />
+    <Row last>
+      <p slot="docs">Use PVCs in Pods via volume mounts. Multiple Pods can reference the same PVC if access mode allows (RWX). The PVC must exist before the Pod starts, or Pod stays Pending.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+spec:
+  containers:
+    - name: app
+      image: my-app:v1
+      volumeMounts:
+        - name: data
+          mountPath: /var/lib/data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: app-data
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pvc-dynamic.yaml" />
+    <Row last>
+      <p slot="docs">Dynamic provisioning creates PVs automatically when PVC is created. Control plane sees PVC with storageClassName, calls provisioner, creates cloud volume (e.g., AWS EBS), creates PV, binds PVC to new PV. No need to pre-create PVs.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dynamic-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: gp3
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pvc-expansion.yaml" />
+    <Row last>
+      <p slot="docs">Volume expansion allows growing PVCs. StorageClass must have <code>allowVolumeExpansion: true</code>. Edit the PVC to request more storage. Some storage types require Pod restart. Shrinking is not supported.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: expandable
+provisioner: ebs.csi.aws.com
+allowVolumeExpansion: true
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pvc-selector.yaml" />
+    <Row last>
+      <p slot="docs">Selector binds PVCs to specific PVs using labels. First: PV with labels. Second: PVC with selector matching those labels. Useful when you need a particular PV (pre-provisioned data, specific performance tier). Bypasses normal capacity-based matching.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: fast-ssd
+  labels:
+    type: ssd
+    environment: prod
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes: [ReadWriteOnce]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prod-data
+spec:
+  selector:
+    matchLabels:
+      type: ssd
+      environment: prod
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 50Gi
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pvc-clone.yaml" />
+    <Row last>
+      <p slot="docs">Data sources clone existing PVCs or restore from snapshots. First example: clone from existing PVC. Second example: restore from VolumeSnapshot. Both require CSI driver support.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cloned-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+  dataSource:
+    kind: PersistentVolumeClaim
+    name: original-data
+---
+spec:
+  dataSource:
+    kind: VolumeSnapshot
+    name: data-snapshot
+    apiGroup: snapshot.storage.k8s.io
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pvc" />
+    <Row last terminal>
+      <p slot="docs">Debug PVC issues by checking status, events, and storage class. Pending PVCs usually mean: no matching PV, wrong access mode, storage class doesn't exist, or provisioner failed.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pvc
+NAME       STATUS   VOLUME    CAPACITY   ACCESS MODES   AGE
+app-data   Bound    pv-data   10Gi       RWO            5m
+db-data    Pending  <none>    <none>     RWO            2m
+
+$ kubectl describe pvc db-data
+Events:
+  Type     Reason              Message
+  Warning  ProvisioningFailed  waiting for first consumer
+
+$ kubectl patch pvc app-data \
+    -p '{"spec":{"resources":{"requests":{"storage":"50Gi"}}}}'
+persistentvolumeclaim/app-data patched
+
+$ kubectl describe pvc app-data | grep -A5 Conditions
+Conditions:
+  Type: FileSystemResizePending
+  Status: True
+  Message: Waiting for user to restart pod
+
+$ kubectl get storageclass
+NAME                 PROVISIONER          DEFAULT
+standard             ebs.csi.aws.com      Yes
+fast-ssd             ebs.csi.aws.com
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
