@@ -71,7 +71,26 @@ function getLessonBySlug(slug: string) {
       > | <a
         href="https://creativecommons.org/licenses/by/4.0/"
         class="text-white/35 hover:underline">license</a
+      > | <button
+        id="grain-toggle"
+        class="text-white/35 hover:underline hover:text-white/35"
+        >grain: <span id="grain-status">on</span></button
       >
     </p>
   </main>
+  <script>
+    const btn = document.getElementById('grain-toggle');
+    const status = document.getElementById('grain-status');
+
+    function updateStatus() {
+      status!.textContent = (window as any).isGrainEnabled() ? 'on' : 'off';
+    }
+
+    updateStatus();
+
+    btn?.addEventListener('click', () => {
+      (window as any).toggleGrain();
+      updateStatus();
+    });
+  </script>
 </Layout>

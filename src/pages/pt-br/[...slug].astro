@@ -61,7 +61,28 @@ const { Content } = await entry.render();
 
     <p class="mt-12 text-[13px] text-white/35">
       <a href="/pt-br" class="text-white/35 hover:underline">Índice</a> |
-      Use as setas do teclado para navegar
+      <a href="https://github.com/sozua/k8sbyexample.org" class="text-white/35 hover:underline">GitHub</a> |
+      Use as setas do teclado para navegar |
+      <button
+        id="grain-toggle"
+        class="text-white/35 hover:underline hover:text-white/35"
+        >grain: <span id="grain-status">on</span></button
+      >
     </p>
   </main>
+  <script>
+    const btn = document.getElementById('grain-toggle');
+    const status = document.getElementById('grain-status');
+
+    function updateStatus() {
+      status!.textContent = (window as any).isGrainEnabled() ? 'on' : 'off';
+    }
+
+    updateStatus();
+
+    btn?.addEventListener('click', () => {
+      (window as any).toggleGrain();
+      updateStatus();
+    });
+  </script>
 </Layout>
