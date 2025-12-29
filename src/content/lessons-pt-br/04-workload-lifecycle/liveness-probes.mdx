@@ -14,7 +14,7 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
   <tbody>
     <FileHeader filename="pod-liveness.yaml" />
     <Row last>
-      <p slot="docs">HTTP probe é saudável se status da resposta é 200-399. <code>initialDelaySeconds</code> aguarda antes da primeira probe. <code>periodSeconds</code> define intervalo da probe. <code>failureThreshold</code> é falhas consecutivas antes de reiniciar.</p>
+      <p slot="docs">HTTP probe é a escolha mais comum. Use quando sua app tem um endpoint HTTP. Saudável se status é 200-399. <code>initialDelaySeconds</code> aguarda antes da primeira probe. <code>periodSeconds</code> define intervalo. <code>failureThreshold</code> é falhas consecutivas antes de reiniciar.</p>
       <Fragment slot="code">
 ```yaml
 spec:
@@ -64,7 +64,7 @@ livenessProbe:
   <tbody>
     <FileHeader filename="pod-liveness-tcp.yaml" />
     <Row last>
-      <p slot="docs">TCP probe é saudável se porta aceita conexões. Use quando HTTP não está disponível (bancos de dados, filas de mensagem, Redis). Não verifica se o serviço está funcionando corretamente - apenas se está escutando.</p>
+      <p slot="docs">TCP probe verifica se a porta aceita conexões. Use para serviços não-HTTP (bancos de dados, Redis, gRPC sem health checks). Limitação: apenas confirma que a porta está aberta, não que o serviço está saudável. Prefira HTTP ou exec quando possível.</p>
       <Fragment slot="code">
 ```yaml
 livenessProbe:
@@ -82,7 +82,7 @@ livenessProbe:
   <tbody>
     <FileHeader filename="pod-liveness-exec.yaml" />
     <Row last>
-      <p slot="docs">Exec probe é saudável se comando sai com 0. Use para lógica de health customizada ou serviços sem endpoints HTTP. Cuidado com uso de recursos - exec roda no container.</p>
+      <p slot="docs">Exec probe executa um comando dentro do container. Saudável se código de saída é 0. Use para lógica de health customizada (verificar arquivos, rodar CLI tools como <code>pg_isready</code>). Mais flexível mas mais lento e usa mais recursos que HTTP/TCP.</p>
       <Fragment slot="code">
 ```yaml
 livenessProbe:
@@ -153,7 +153,7 @@ livenessProbe:
   <tbody>
     <FileHeader filename="pod-liveness-best.yaml" />
     <Row last>
-      <p slot="docs">Erro comum: liveness probe muito agressiva causa loops de restart. Se sua app leva tempo para processar requisições, aumente timeoutSeconds. Se startup é lento, use startupProbe. Seja tolerante - não reinicie em falhas transientes.</p>
+      <p slot="docs">Erros comuns: (1) Configurações muito agressivas causam loops de restart. Aumente timeoutSeconds para endpoints lentos. (2) Verificar dependências como banco de dados ou APIs externas. Se o DB está fora, reiniciar não ajuda e causa falhas em cascata. (3) Usar liveness para apps que crasham de forma limpa. Kubernetes já reinicia containers que crasham. Use liveness apenas para falhas silenciosas (deadlocks, travamentos).</p>
       <Fragment slot="code">
 ```yaml
 livenessProbe:

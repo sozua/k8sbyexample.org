@@ -56,10 +56,11 @@ const ogImage = `${siteUrl}/images/og-image.png`;
         const KEY = 'grain-enabled';
         const saved = localStorage.getItem(KEY);
         if (saved === 'false') {
-          document.body.classList.remove('bg-noise');
+          document.body.classList.remove('bg-noise', 'bg-gradient');
         }
         window.toggleGrain = function() {
           const isEnabled = document.body.classList.toggle('bg-noise');
+          document.body.classList.toggle('bg-gradient', isEnabled);
           localStorage.setItem(KEY, isEnabled);
           return isEnabled;
         };

@@ -7,14 +7,14 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
 
 
 <Intro>
-  <p>RBAC controls who can do what in the cluster. Role defines permissions. RoleBinding grants them to users or ServiceAccounts. ClusterRole/ClusterRoleBinding for cluster-wide access.</p>
+  <p>RBAC controls who can do what in the cluster. Two pieces: a Role defines what actions are allowed on which resources, and a RoleBinding grants that Role to users or ServiceAccounts. Use ClusterRole and ClusterRoleBinding when you need cluster-wide access.</p>
 </Intro>
 
 <table class="example-table">
   <tbody>
     <FileHeader filename="role.yaml" />
     <Row last>
-      <p slot="docs">Role defines permissions within a namespace. <code>apiGroups</code> specifies API groups (empty string <code>""</code> means core API). <code>resources</code> are the objects. <code>verbs</code> are the allowed actions.</p>
+      <p slot="docs">Role defines permissions within a namespace. <code>apiGroups</code> specifies which API group the resource belongs to: <code>""</code> for core resources (pods, services, configmaps), <code>"apps"</code> for deployments, <code>"rbac.authorization.k8s.io"</code> for roles. <code>verbs</code> are the allowed actions.</p>
       <Fragment slot="code">
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1

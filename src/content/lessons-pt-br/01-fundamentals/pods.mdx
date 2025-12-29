@@ -45,7 +45,7 @@ spec:
       </Fragment>
     </Row>
     <Row last>
-      <p slot="docs">Exponha portas para tornar o container acessível. <code>containerPort</code> é informativo, mas útil para documentação.</p>
+      <p slot="docs">Declare as portas do container. <code>containerPort</code> é principalmente documentação, mas Services podem referenciar portas nomeadas e ferramentas como Istio usam esses metadados.</p>
       <Fragment slot="code">
 ```yaml
       ports:
