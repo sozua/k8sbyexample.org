@@ -60,14 +60,26 @@ const currentPageIndex = currentModule.lessons.indexOf(currentSlug);
         </span>
         <div class="flex gap-1 shrink-0">
           <button
-            class="arrow prev flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded text-white/40 cursor-pointer transition-all duration-150 hover:bg-white/[0.08] hover:text-white/80"
+            class:list={[
+              "arrow prev flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded transition-all duration-150",
+              currentSectionIndex === 0
+                ? "text-white/15 cursor-not-allowed"
+                : "text-white/40 cursor-pointer hover:bg-white/[0.08] hover:text-white/80"
+            ]}
             aria-label="Previous section"
+            disabled={currentSectionIndex === 0}
           >
             <ChevronLeft size={12} strokeWidth={1.5} />
           </button>
           <button
-            class="arrow next flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded text-white/40 cursor-pointer transition-all duration-150 hover:bg-white/[0.08] hover:text-white/80"
+            class:list={[
+              "arrow next flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded transition-all duration-150",
+              currentSectionIndex === modules.length - 1
+                ? "text-white/15 cursor-not-allowed"
+                : "text-white/40 cursor-pointer hover:bg-white/[0.08] hover:text-white/80"
+            ]}
             aria-label="Next section"
+            disabled={currentSectionIndex === modules.length - 1}
           >
             <ChevronRight size={12} strokeWidth={1.5} />
           </button>
@@ -119,11 +131,25 @@ const currentPageIndex = currentModule.lessons.indexOf(currentSlug);
       console.error("SectionProgress: Missing required DOM elements");
     }
 
+    function updateButtonStates(sectionIdx: number) {
+      if (!prevBtn || !nextBtn) return;
+
+      const isFirst = sectionIdx === 0;
+      const isLast = sectionIdx === sections.length - 1;
+
+      (prevBtn as HTMLButtonElement).disabled = isFirst;
+      prevBtn.className = `arrow prev flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded transition-all duration-150 ${isFirst ? 'text-white/15 cursor-not-allowed' : 'text-white/40 cursor-pointer hover:bg-white/[0.08] hover:text-white/80'}`;
+
+      (nextBtn as HTMLButtonElement).disabled = isLast;
+      nextBtn.className = `arrow next flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded transition-all duration-150 ${isLast ? 'text-white/15 cursor-not-allowed' : 'text-white/40 cursor-pointer hover:bg-white/[0.08] hover:text-white/80'}`;
+    }
+
     function renderSection(sectionIdx: number) {
       const section = sections[sectionIdx];
       if (!section || !sectionName || !itemsContainer) return;
 
       sectionName.textContent = section.name;
+      updateButtonStates(sectionIdx);
 
       itemsContainer.replaceChildren();
       section.lessons.forEach((ex: { slug: string; title: string }, i: number) => {
@@ -139,15 +165,19 @@ const currentPageIndex = currentModule.lessons.indexOf(currentSlug);
     prevBtn?.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      currentSectionIdx = (currentSectionIdx - 1 + sections.length) % sections.length;
-      renderSection(currentSectionIdx);
+      if (currentSectionIdx > 0) {
+        currentSectionIdx--;
+        renderSection(currentSectionIdx);
+      }
     });
 
     nextBtn?.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      currentSectionIdx = (currentSectionIdx + 1) % sections.length;
-      renderSection(currentSectionIdx);
+      if (currentSectionIdx < sections.length - 1) {
+        currentSectionIdx++;
+        renderSection(currentSectionIdx);
+      }
     });
 
     container.addEventListener("mouseleave", () => {
@@ -161,10 +191,10 @@ const currentPageIndex = currentModule.lessons.indexOf(currentSlug);
         e.preventDefault();
         scrollCooldown = true;
         const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
-        if (delta > 0) {
-          currentSectionIdx = (currentSectionIdx + 1) % sections.length;
-        } else if (delta < 0) {
-          currentSectionIdx = (currentSectionIdx - 1 + sections.length) % sections.length;
+        if (delta > 0 && currentSectionIdx < sections.length - 1) {
+          currentSectionIdx++;
+        } else if (delta < 0 && currentSectionIdx > 0) {
+          currentSectionIdx--;
         }
         renderSection(currentSectionIdx);
         setTimeout(() => { scrollCooldown = false; }, 50);

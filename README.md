@@ -14,6 +14,11 @@
 
 ## Topics
 
+- Getting Started
+  - [Local Cluster](https://k8sbyexample.org/local-cluster)
+  - [Hello World](https://k8sbyexample.org/hello-world)
+  - [kubectl Basics](https://k8sbyexample.org/kubectl-basics)
+
 - Architecture
   - [Overview](https://k8sbyexample.org/overview)
   - [Control Plane](https://k8sbyexample.org/control-plane)

@@ -8,20 +8,18 @@ interface Props {
 const { prev, next, basePath = '' } = Astro.props;
 ---
 
-{(prev || next) && (
-  <nav class="mt-8 pt-6 border-t border-white/[0.08] flex justify-between" aria-label="Example navigation">
-    {prev ? (
-      <p>
-        <a href={`${basePath}/${prev.slug}`} rel="prev" class="text-white/60 text-sm hover:underline">&larr; {prev.title}</a>
-      </p>
-    ) : <span />}
-    {next && (
-      <p>
-        <a href={`${basePath}/${next.slug}`} rel="next" class="text-white/60 text-sm hover:underline">{next.title} &rarr;</a>
-      </p>
-    )}
-  </nav>
-)}
+<nav class="mt-8 pt-6 border-t border-white/[0.08] flex justify-between" aria-label="Example navigation">
+  {prev ? (
+    <a href={`${basePath}/${prev.slug}`} rel="prev" class="text-white/60 text-sm hover:underline">&larr; {prev.title}</a>
+  ) : (
+    <span class="text-white/20 text-sm cursor-not-allowed">&larr; Previous</span>
+  )}
+  {next ? (
+    <a href={`${basePath}/${next.slug}`} rel="next" class="text-white/60 text-sm hover:underline">{next.title} &rarr;</a>
+  ) : (
+    <span class="text-white/20 text-sm cursor-not-allowed">Next &rarr;</span>
+  )}
+</nav>
 
 <script define:vars={{ prevSlug: prev?.slug, nextSlug: next?.slug, basePath }}>
   document.addEventListener('keydown', (e) => {

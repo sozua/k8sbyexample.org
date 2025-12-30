@@ -1,0 +1,198 @@
+---
+title: "kubectl Basics"
+description: "Essential commands for working with Kubernetes"
+order: 3
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p><code>kubectl</code> is the command-line tool for Kubernetes. These are the commands you'll use daily. Most follow the pattern <code>kubectl [verb] [resource] [name]</code>.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get" />
+    <Row last terminal>
+      <p slot="docs">List resources. Works with any resource type: pods, services, deployments, nodes, configmaps, secrets, etc.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods
+$ kubectl get svc
+$ kubectl get deploy
+$ kubectl get nodes
+$ kubectl get all          # pods, services, deployments, replicasets
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get (useful flags)" />
+    <Row last terminal>
+      <p slot="docs">Common flags: <code>-o wide</code> shows more columns, <code>-o yaml</code> dumps the full spec, <code>-w</code> watches for changes, <code>-A</code> shows all namespaces.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -o wide           # show node, IP
+$ kubectl get pods -o yaml           # full YAML output
+$ kubectl get pods -w                # watch for changes
+$ kubectl get pods -A                # all namespaces
+$ kubectl get pods -l app=nginx      # filter by label
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe" />
+    <Row last terminal>
+      <p slot="docs">Show detailed info about a resource. Includes events, which are essential for debugging why something isn't working.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe pod my-pod
+Name:         my-pod
+Namespace:    default
+Node:         kind-worker/172.18.0.3
+Status:       Running
+IP:           10.244.1.5
+...
+Events:
+  Type    Reason     Age   Message
+  Normal  Scheduled  10s   Successfully assigned
+  Normal  Pulled     8s    Container image pulled
+  Normal  Started    7s    Started container
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl apply / delete" />
+    <Row last terminal>
+      <p slot="docs"><code>apply</code> creates or updates resources from a file. <code>delete</code> removes them. These are the commands you'll use to deploy.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl apply -f deployment.yaml   # create or update
+$ kubectl apply -f ./manifests/      # apply all files in directory
+$ kubectl delete -f deployment.yaml  # delete resources in file
+$ kubectl delete pod my-pod          # delete by name
+$ kubectl delete pods --all          # delete all pods in namespace
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl logs" />
+    <Row last terminal>
+      <p slot="docs">View container logs. Add <code>-f</code> to stream logs in real-time (like tail -f). Use <code>--previous</code> to see logs from a crashed container.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl logs my-pod                # show logs
+$ kubectl logs my-pod -f             # stream logs
+$ kubectl logs my-pod --previous     # logs from crashed container
+$ kubectl logs my-pod -c nginx       # specific container in pod
+$ kubectl logs -l app=nginx          # logs from all pods with label
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl exec" />
+    <Row last terminal>
+      <p slot="docs">Run commands inside a container. Use <code>-it</code> for an interactive shell. Essential for debugging.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl exec my-pod -- ls /app           # run command
+$ kubectl exec my-pod -it -- sh            # interactive shell
+$ kubectl exec my-pod -it -- /bin/bash     # bash if available
+$ kubectl exec my-pod -c nginx -it -- sh   # specific container
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl port-forward" />
+    <Row last terminal>
+      <p slot="docs">Forward a local port to a pod or service. Useful for testing without exposing services externally.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl port-forward pod/my-pod 8080:80      # forward to pod
+$ kubectl port-forward svc/my-svc 8080:80      # forward to service
+$ kubectl port-forward deploy/my-app 8080:80   # forward to deployment
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl run" />
+    <Row last terminal>
+      <p slot="docs">Quick way to run a pod without writing YAML. Good for debugging. Add <code>--rm -it</code> for a temporary pod that deletes on exit.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl run nginx --image=nginx                    # create pod
+$ kubectl run debug --image=alpine --rm -it -- sh    # temp debug pod
+$ kubectl run curl --image=curlimages/curl --rm -it -- curl my-svc
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl config" />
+    <Row last terminal>
+      <p slot="docs">Manage cluster contexts. A context combines a cluster, user, and namespace. Switch between clusters with <code>use-context</code>.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl config get-contexts           # list contexts
+$ kubectl config current-context        # show current
+$ kubectl config use-context my-cluster # switch context
+$ kubectl config set-context --current --namespace=dev  # set default ns
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="Quick debugging workflow" />
+    <Row last terminal>
+      <p slot="docs">When something isn't working: check pod status, read events, check logs.</p>
+      <Fragment slot="code">
+```bash
+# 1. Check pod status
+$ kubectl get pods
+
+# 2. If not Running, check events
+$ kubectl describe pod my-pod | grep -A 20 Events
+
+# 3. If Running but not working, check logs
+$ kubectl logs my-pod
+
+# 4. If logs aren't helpful, shell in
+$ kubectl exec my-pod -it -- sh
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>

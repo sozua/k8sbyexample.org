@@ -1,0 +1,153 @@
+---
+title: "Local Cluster"
+description: "Set up a local Kubernetes cluster with kind"
+order: 1
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>You need a cluster to run Kubernetes. For local development, <a href="https://kind.sigs.k8s.io/">kind</a> (Kubernetes in Docker) is the fastest way to get started. It runs a cluster inside Docker containers.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="Install kind" />
+    <Row last terminal>
+      <p slot="docs">Install kind using your package manager. On macOS use Homebrew, on Linux download the binary directly.</p>
+      <Fragment slot="code">
+```bash
+# macOS
+$ brew install kind
+
+# Linux
+$ curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+$ chmod +x ./kind
+$ sudo mv ./kind /usr/local/bin/kind
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kind create cluster" />
+    <Row last terminal>
+      <p slot="docs">Create a cluster. This pulls the node image and starts a container. Takes about 30 seconds.</p>
+      <Fragment slot="code">
+```bash
+$ kind create cluster
+Creating cluster "kind" ...
+ ✓ Ensuring node image (kindest/node:v1.31.0)
+ ✓ Preparing nodes
+ ✓ Writing configuration
+ ✓ Starting control-plane
+ ✓ Installing CNI
+ ✓ Installing StorageClass
+Set kubectl context to "kind-kind"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl cluster-info" />
+    <Row last terminal>
+      <p slot="docs">Verify the cluster is running. kind automatically configures kubectl to connect to your new cluster.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl cluster-info
+Kubernetes control plane is running at https://127.0.0.1:6443
+CoreDNS is running at https://127.0.0.1:6443/api/v1/...
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get nodes" />
+    <Row last terminal>
+      <p slot="docs">List nodes in the cluster. A basic kind cluster has one node that acts as both control plane and worker.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get nodes
+NAME                 STATUS   ROLES           AGE   VERSION
+kind-control-plane   Ready    control-plane   45s   v1.31.0
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="multi-node.yaml" />
+    <Row>
+      <p slot="docs">For a more realistic setup, create a multi-node cluster. This config creates one control plane and two workers.</p>
+      <Fragment slot="code">
+```yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Pass the config file when creating the cluster.</p>
+      <Fragment slot="code">
+```bash
+$ kind create cluster --config multi-node.yaml
+$ kubectl get nodes
+NAME                 STATUS   ROLES           AGE   VERSION
+kind-control-plane   Ready    control-plane   60s   v1.31.0
+kind-worker          Ready    <none>          30s   v1.31.0
+kind-worker2         Ready    <none>          30s   v1.31.0
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kind delete cluster" />
+    <Row last terminal>
+      <p slot="docs">Delete the cluster when you're done. This removes all containers and frees up resources.</p>
+      <Fragment slot="code">
+```bash
+$ kind delete cluster
+Deleting cluster "kind" ...
+Deleted nodes: ["kind-control-plane"]
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="Alternatives" />
+    <Row last terminal>
+      <p slot="docs">Other options: <a href="https://minikube.sigs.k8s.io/">minikube</a> (more features, slower), <a href="https://k3s.io/">k3s</a> (lightweight, good for edge), or <a href="https://docs.docker.com/desktop/kubernetes/">Docker Desktop</a> (enable in settings).</p>
+      <Fragment slot="code">
+```bash
+# minikube
+$ minikube start
+
+# k3s (Linux only)
+$ curl -sfL https://get.k3s.io | sh -
+
+# Docker Desktop: Settings → Kubernetes → Enable
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>

@@ -6,6 +6,7 @@ export const translations = {
     intro2: 'teaches through annotated YAML manifests. Each example demonstrates a production pattern you can apply immediately.',
     footer: 'Heavily inspired by',
     modules: {
+      gettingStarted: 'Getting Started',
       architecture: 'Architecture',
       fundamentals: 'Fundamentals',
       configuration: 'Configuration',
@@ -26,6 +27,7 @@ export const translations = {
     intro2: 'ensina através de manifests YAML anotados. Cada exemplo demonstra um padrão de produção que você pode aplicar imediatamente.',
     footer: 'Fortemente inspirado em',
     modules: {
+      gettingStarted: 'Primeiros Passos',
       architecture: 'Arquitetura',
       fundamentals: 'Fundamentos',
       configuration: 'Configuração',

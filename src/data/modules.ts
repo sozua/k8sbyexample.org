@@ -6,6 +6,15 @@ export interface Module {
 
 export const modules: Module[] = [
   {
+    id: '00-getting-started',
+    key: 'gettingStarted',
+    lessons: [
+      'local-cluster',
+      'hello-world',
+      'kubectl-basics',
+    ],
+  },
+  {
     id: '00-architecture',
     key: 'architecture',
     lessons: [
