@@ -36,10 +36,9 @@ function getLessonBySlug(slug: string) {
 
     {
       modules.map((mod) => (
-        <div class={`mt-10 ${mod.key === 'gettingStarted' ? 'border border-white/10 rounded-lg p-4 -mx-4 bg-white/[0.02]' : ''}`}>
-          <h3 class={`text-sm font-medium uppercase tracking-wide mb-3 ${mod.key === 'gettingStarted' ? 'text-white/60' : 'text-white/40'}`}>
+        <div class="mt-10">
+          <h3 class="text-sm font-medium uppercase tracking-wide text-white/40 mb-3">
             {t.modules[mod.key as keyof typeof t.modules]}
-            {mod.key === 'gettingStarted' && <span class="text-white/30 normal-case font-normal"> — start here</span>}
           </h3>
           <ul class="list-none">
             {mod.lessons.map((slug) => {

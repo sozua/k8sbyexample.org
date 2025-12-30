@@ -15,7 +15,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    id: '00-architecture',
+    id: '01-architecture',
     key: 'architecture',
     lessons: [
       'overview',
@@ -24,7 +24,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    id: '01-fundamentals',
+    id: '02-fundamentals',
     key: 'fundamentals',
     lessons: [
       'namespaces',
@@ -38,7 +38,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    id: '02-configuration',
+    id: '03-configuration',
     key: 'configuration',
     lessons: [
       'configmaps',
@@ -47,7 +47,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    id: '03-networking',
+    id: '04-networking',
     key: 'networking',
     lessons: [
       'ingress',
@@ -56,7 +56,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    id: '04-workload-lifecycle',
+    id: '05-workload-lifecycle',
     key: 'lifecycle',
     lessons: [
       'init-containers',
@@ -70,7 +70,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    id: '05-scaling-scheduling',
+    id: '06-scaling-scheduling',
     key: 'scaling',
     lessons: [
       'resource-limits',
@@ -85,7 +85,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    id: '06-security',
+    id: '07-security',
     key: 'security',
     lessons: [
       'security-context',
@@ -96,7 +96,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    id: '07-advanced',
+    id: '08-advanced',
     key: 'advanced',
     lessons: [
       'kustomize',
@@ -112,7 +112,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    id: '08-storage',
+    id: '09-storage',
     key: 'storage',
     lessons: [
       'persistent-volumes',
@@ -121,7 +121,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    id: '09-multi-container-patterns',
+    id: '10-multi-container-patterns',
     key: 'patterns',
     lessons: [
       'sidecar-pattern',
@@ -130,7 +130,7 @@ export const modules: Module[] = [
     ],
   },
   {
-    id: '10-observability',
+    id: '11-observability',
     key: 'observability',
     lessons: [
       'prometheus-monitoring',

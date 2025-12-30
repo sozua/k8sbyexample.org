@@ -1,0 +1,189 @@
+---
+title: "Hello World"
+description: "Faça o deploy da sua primeira aplicação no Kubernetes"
+order: 2
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Vamos fazer deploy de um servidor web e acessá-lo. Este é o equivalente do "Hello World" no Kubernetes - criar um Deployment, expor com um Service e fazer uma requisição.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="hello.yaml" />
+    <Row>
+      <p slot="docs">Um Deployment gerencia réplicas da sua aplicação. Ele garante que o número desejado de pods esteja sempre rodando.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">Rode 2 réplicas. O selector deve corresponder aos labels do template do pod - é assim que o Deployment sabe quais pods ele gerencia.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hello
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">O template define os pods. Cada pod roda um container nginx que serve uma página de boas-vindas na porta 80.</p>
+      <Fragment slot="code">
+```yaml
+  template:
+    metadata:
+      labels:
+        app: hello
+    spec:
+      containers:
+        - name: web
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">Um Service fornece um endpoint estável para acessar os pods. <code>ClusterIP</code> é o tipo padrão - acessível apenas dentro do cluster.</p>
+      <Fragment slot="code">
+```yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">O selector roteia tráfego para pods com labels correspondentes. A porta 80 no Service encaminha para a porta 80 nos pods.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  selector:
+    app: hello
+  ports:
+    - port: 80
+      targetPort: 80
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl apply -f hello.yaml" />
+    <Row last terminal>
+      <p slot="docs">Aplique o manifesto. O Kubernetes cria o Deployment, que cria um ReplicaSet, que cria os pods.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl apply -f hello.yaml
+deployment.apps/hello created
+service/hello created
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods" />
+    <Row last terminal>
+      <p slot="docs">Verifique se os pods estão rodando. O sufixo aleatório no nome vem do ReplicaSet.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods
+NAME                     READY   STATUS    RESTARTS   AGE
+hello-5d7b9d8c7f-k2x9m   1/1     Running   0          10s
+hello-5d7b9d8c7f-p8z4n   1/1     Running   0          10s
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get svc" />
+    <Row last terminal>
+      <p slot="docs">O Service recebe um IP de cluster. Este IP é estável - pods podem ir e vir, mas o IP do Service permanece o mesmo.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get svc hello
+NAME    TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+hello   ClusterIP   10.96.45.123   <none>        80/TCP    15s
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl run curl --image=curlimages/curl --rm -it -- curl hello" />
+    <Row last terminal>
+      <p slot="docs">Teste o Service de dentro do cluster. Criamos um pod temporário com curl e acessamos o Service pelo nome. O DNS resolve <code>hello</code> para o IP do Service.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl run curl --image=curlimages/curl --rm -it -- curl -s hello
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+...
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl port-forward svc/hello 8080:80" />
+    <Row last terminal>
+      <p slot="docs">Para acessar da sua máquina, use port-forward. Isso cria um túnel de localhost:8080 para o Service. Abra <code>http://localhost:8080</code> no seu navegador.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl port-forward svc/hello 8080:80
+Forwarding from 127.0.0.1:8080 -> 80
+
+# Em outro terminal:
+$ curl localhost:8080
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+...
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl delete -f hello.yaml" />
+    <Row last terminal>
+      <p slot="docs">Limpe deletando tudo que foi definido no manifesto.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl delete -f hello.yaml
+deployment.apps "hello" deleted
+service "hello" deleted
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
