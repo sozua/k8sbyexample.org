@@ -70,8 +70,8 @@ spec:
 <table class="example-table">
   <tbody>
     <FileHeader filename="pv-cloud.yaml" />
-    <Row last>
-      <p slot="docs">Cloud provider volumes use specific volume sources. First example: AWS EBS. Second example: GCE Persistent Disk. Third example: NFS. For production, use dynamic provisioning via StorageClass instead of manually creating PVs.</p>
+    <Row>
+      <p slot="docs">AWS EBS volume: reference an existing EBS volume by ID. EBS volumes are RWO only and must be in the same AZ as the node. For production, use dynamic provisioning via StorageClass.</p>
       <Fragment slot="code">
 ```yaml
 spec:
@@ -81,12 +81,24 @@ spec:
   awsElasticBlockStore:
     volumeID: vol-0123456789abcdef0
     fsType: ext4
----
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">GCE Persistent Disk: reference a GCE disk by name. Similar to EBS, PDs are zonal and RWO.</p>
+      <Fragment slot="code">
+```yaml
 spec:
   gcePersistentDisk:
     pdName: my-disk
     fsType: ext4
----
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">NFS volume: mount a network filesystem. Supports RWX (multiple nodes read-write), making it suitable for shared storage.</p>
+      <Fragment slot="code">
+```yaml
 spec:
   nfs:
     server: nfs-server.example.com
@@ -129,15 +141,21 @@ spec:
 <table class="example-table">
   <tbody>
     <FileHeader filename="pv-block.yaml" />
-    <Row last>
-      <p slot="docs">Volume modes: <code>Filesystem</code> (default) mounts as a directory. <code>Block</code> exposes raw block device without filesystem. Second example shows Block volume in Pod using <code>volumeDevices</code> (not volumeMounts). Block mode is for databases that manage their own storage format.</p>
+    <Row>
+      <p slot="docs"><code>volumeMode: Filesystem</code> (default) mounts the PV as a directory. The storage is formatted with a filesystem (ext4, xfs) and mounted into the container.</p>
       <Fragment slot="code">
 ```yaml
 spec:
   volumeMode: Filesystem
   capacity:
     storage: 10Gi
----
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs"><code>volumeMode: Block</code> exposes raw block device without filesystem. Use <code>volumeDevices</code> (not volumeMounts) in Pod spec. Block mode is for databases that manage their own storage format.</p>
+      <Fragment slot="code">
+```yaml
 spec:
   containers:
     - name: app

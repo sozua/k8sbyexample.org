@@ -83,17 +83,29 @@ spec:
 <table class="example-table">
   <tbody>
     <FileHeader filename="job-modes.yaml" />
-    <Row last>
-      <p slot="docs">Parallel Jobs have three modes. First example: fixed completion count (run 10 total, 3 at a time). Second example: work queue (no completions = Pods coordinate, done when any Pod exits 0). Third example: single Pod (default).</p>
+    <Row>
+      <p slot="docs">Fixed completion count: run exactly N Pods total with M running at a time. Here 10 Pods will run, 3 concurrently. Job completes when all 10 succeed.</p>
       <Fragment slot="code">
 ```yaml
 spec:
   completions: 10
   parallelism: 3
----
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">Work queue mode: no <code>completions</code> set, Pods coordinate themselves. Job finishes when any Pod exits 0. Use for queue-based processing where Pods pull work until empty.</p>
+      <Fragment slot="code">
+```yaml
 spec:
   parallelism: 5
----
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Single Pod mode (default): run one Pod to completion. Both values default to 1 if not specified.</p>
+      <Fragment slot="code">
+```yaml
 spec:
   completions: 1
   parallelism: 1

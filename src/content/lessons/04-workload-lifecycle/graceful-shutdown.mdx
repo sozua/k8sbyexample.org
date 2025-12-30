@@ -160,8 +160,8 @@ spec:
 <table class="example-table">
   <tbody>
     <FileHeader filename="job-graceful-shutdown.yaml" />
-    <Row last>
-      <p slot="docs">Jobs and batch workloads need graceful shutdown too. If terminated mid-processing, the job should checkpoint progress or mark items for retry. The activeDeadlineSeconds limits total runtime.</p>
+    <Row>
+      <p slot="docs">Jobs need graceful shutdown too. <code>activeDeadlineSeconds</code> limits total runtime. The container reads <code>GRACEFUL_SHUTDOWN_TIMEOUT</code> to know how long it has to checkpoint before SIGKILL.</p>
       <Fragment slot="code">
 ```yaml
 apiVersion: batch/v1
@@ -182,6 +182,13 @@ spec:
               value: "/data/checkpoints"
             - name: GRACEFUL_SHUTDOWN_TIMEOUT
               value: "290"
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Use a PersistentVolumeClaim to store checkpoints. If terminated mid-processing, the job can resume from the last checkpoint on retry.</p>
+      <Fragment slot="code">
+```yaml
           volumeMounts:
             - name: data
               mountPath: /data
