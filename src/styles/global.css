@@ -134,7 +134,7 @@
   position: fixed;
   inset: 0;
   background-image: url("/images/noise-light.png");
-  opacity: 0.2;
+  opacity: 0.3;
   pointer-events: none;
   z-index: -1;
   animation: grain 1.5s step-end infinite;
