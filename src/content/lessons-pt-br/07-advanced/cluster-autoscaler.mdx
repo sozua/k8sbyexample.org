@@ -1,0 +1,275 @@
+---
+title: "Cluster Autoscaler"
+description: "Escalar nodes automaticamente baseado em pods pendentes"
+order: 40
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Cluster Autoscaler ajusta automaticamente o número de nodes baseado em pods pendentes. Adiciona nodes quando pods não podem ser agendados por falta de recursos, e remove nodes subutilizados para economizar custos. Essencial para lidar com workloads variáveis de forma eficiente.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods -A | grep Pending" />
+    <Row>
+      <p slot="docs">Cluster Autoscaler dispara scale-up quando pods estão Pending por falta de recursos. Analisa por que pods não podem ser agendados e adiciona nodes apropriados.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -A | grep Pending
+default   web-abc123    0/1     Pending   0          5m
+
+$ kubectl describe pod web-abc123 | grep -A5 Events
+Events:
+  Type     Reason            Message
+  ----     ------            -------
+  Warning  FailedScheduling  0/3 nodes available:
+           3 Insufficient cpu.
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Verifique status e decisões do autoscaler. O ConfigMap <code>cluster-autoscaler-status</code> mostra estado atual e eventos de scale recentes.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get cm cluster-autoscaler-status -n kube-system -o yaml
+status: |
+  Cluster-autoscaler status at 2024-01-15 10:30:00
+  NodeGroups:
+    Name: default-pool
+    Health: Healthy
+    Min: 1  Max: 10  Current: 3
+  ScaleUp:
+    InProgress: true
+    Reason: pod didn't fit on any node
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="cluster-autoscaler-deployment.yaml" />
+    <Row>
+      <p slot="docs">Cluster Autoscaler roda como um Deployment. Flags principais: <code>--node-group-auto-discovery</code> encontra pools de nodes, <code>--scale-down-enabled</code> permite remover nodes.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-autoscaler
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cluster-autoscaler
+  template:
+    spec:
+      containers:
+        - name: cluster-autoscaler
+          image: registry.k8s.io/autoscaling/cluster-autoscaler:v1.28.0
+          command:
+            - ./cluster-autoscaler
+            - --cloud-provider=aws
+            - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/my-cluster
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Configure comportamento de scale-down. <code>--scale-down-delay-after-add</code> previne thrashing, <code>--scale-down-unneeded-time</code> define quanto tempo um node deve estar subutilizado.</p>
+      <Fragment slot="code">
+```yaml
+          command:
+            - ./cluster-autoscaler
+            - --scale-down-enabled=true
+            - --scale-down-delay-after-add=10m
+            - --scale-down-unneeded-time=10m
+            - --scale-down-utilization-threshold=0.5
+            - --max-node-provision-time=15m
+            - --balance-similar-node-groups=true
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl logs -n kube-system -l app=cluster-autoscaler" />
+    <Row>
+      <p slot="docs">Depure decisões do autoscaler pelos logs. Procure eventos de <code>ScaleUp</code> e <code>ScaleDown</code>, e razões pelas quais o scaling foi bloqueado.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl logs -n kube-system -l app=cluster-autoscaler | grep -i scale
+Scale-up: setting group size to 5
+Scale-down: removing node node-xyz
+Pod web-abc123 can't be scheduled: Insufficient cpu
+No scale-up: no node group can accommodate pod
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Problemas comuns: pod requests maiores que qualquer tipo de node, regras de affinity bloqueando scheduling, PDB impedindo drain de node.</p>
+      <Fragment slot="code">
+```bash
+# Pod pede mais que o tamanho máximo de node
+$ kubectl logs ... | grep "no node group"
+No scale-up: no node group can accommodate pod
+  requesting cpu=8000m, max node has 4000m
+
+# Pod bloqueado por affinity
+Pod can't be scheduled due to node affinity
+
+# Scale-down bloqueado por PDB
+Cannot remove node: PodDisruptionBudget
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-safe-to-evict.yaml" />
+    <Row>
+      <p slot="docs">Previna pods de bloquear scale-down com a annotation <code>safe-to-evict</code>. Use para pods que podem ser terminados com segurança (stateless, idempotentes).</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: worker
+  annotations:
+    cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+spec:
+  containers:
+    - name: worker
+      image: worker:v1
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Por padrão, pods com storage local, não gerenciados por controller, ou com PDBs restritivos bloqueiam scale-down. Use annotations para sobrescrever.</p>
+      <Fragment slot="code">
+```yaml
+# Pods que bloqueiam scale-down por padrão:
+# - Pods com storage local (emptyDir com dados)
+# - Pods não gerenciados por controller (pods avulsos)
+# - Pods com PDB impedindo evição
+# - Pods com annotation "safe-to-evict: false"
+
+# Este pod usa emptyDir mas é seguro de evictar
+annotations:
+  cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="nodepool-priority.yaml" />
+    <Row>
+      <p slot="docs">Use prioridade de node pool para preferir instâncias mais baratas. Pools de menor prioridade são usados primeiro, com fallback para pools de maior prioridade (mais caros) quando necessário.</p>
+      <Fragment slot="code">
+```yaml
+# Tags do AWS Auto Scaling Group
+k8s.io/cluster-autoscaler/node-template/label/node-type: spot
+k8s.io/cluster-autoscaler/enabled: "true"
+
+# Expander do autoscaler: priority
+# Defina prioridade no ConfigMap:
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-autoscaler-priority-expander
+  namespace: kube-system
+data:
+  priorities: |
+    10:
+      - spot-pool
+    50:
+      - on-demand-pool
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Configure estratégia de expander para controlar qual node pool é escalado. Opções: <code>random</code>, <code>most-pods</code>, <code>least-waste</code>, <code>priority</code>.</p>
+      <Fragment slot="code">
+```bash
+# Use priority expander para otimização de custo
+--expander=priority
+
+# Ou least-waste para bin-packing eficiente
+--expander=least-waste
+
+# Verificar expander atual
+$ kubectl get deploy cluster-autoscaler -n kube-system \
+    -o jsonpath='{.spec.template.spec.containers[0].command}' \
+    | tr ',' '\n' | grep expander
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get nodes --show-labels | grep spot" />
+    <Row last terminal>
+      <p slot="docs">Misture instâncias spot e on-demand para economia. Instâncias spot são mais baratas mas podem ser terminadas. Use para workloads stateless e tolerantes a falhas.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get nodes --show-labels | grep -E "spot|on-demand"
+node-spot-1     node-type=spot
+node-spot-2     node-type=spot
+node-ondemand-1 node-type=on-demand
+
+# Agende workloads críticos em on-demand
+nodeSelector:
+  node-type: on-demand
+
+# Permita batch jobs em spot
+nodeSelector:
+  node-type: spot
+tolerations:
+  - key: "spot-instance"
+    operator: "Exists"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe node | grep -A3 Taints" />
+    <Row last terminal>
+      <p slot="docs">Depure por que pods não estão disparando scale-up. Verifique se pods têm node selectors, affinities ou tolerations que não podem ser satisfeitos por nenhum node pool.</p>
+      <Fragment slot="code">
+```bash
+# Verificar constraints do pod
+$ kubectl get pod pending-pod -o yaml | grep -A10 nodeSelector
+$ kubectl get pod pending-pod -o yaml | grep -A20 affinity
+
+# Verificar templates de node pool
+$ kubectl get cm cluster-autoscaler-status -n kube-system
+NodeGroups:
+  Name: gpu-pool
+    Labels: accelerator=nvidia-tesla-t4
+    Min: 0  Max: 5  Current: 0
+
+# Pod precisa de GPU mas label não corresponde
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

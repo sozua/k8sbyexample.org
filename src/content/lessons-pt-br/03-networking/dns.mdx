@@ -207,6 +207,58 @@ coredns-5644d7b6d9-def34   1/1     Running   10d
   </tbody>
 </table>
 
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-dns-optimized.yaml" />
+    <Row>
+      <p slot="docs">O padrão <code>ndots: 5</code> causa problemas de performance. Nomes com menos de 5 pontos tentam todos search domains primeiro. <code>api.example.com</code> dispara 4+ queries DNS antes de resolver.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  dnsConfig:
+    options:
+      - name: ndots
+        value: "1"
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Para imagens baseadas em Alpine/musl, adicione <code>single-request-reopen</code> para prevenir delays de 5 segundos no DNS causados por queries A/AAAA paralelas.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  dnsConfig:
+    options:
+      - name: ndots
+        value: "1"
+      - name: single-request-reopen
+  containers:
+    - name: app
+      image: myapp:alpine
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl scale deploy coredns -n kube-system" />
+    <Row last terminal>
+      <p slot="docs">Escale CoreDNS para clusters grandes. Recomendado: 1 pod CoreDNS por 10-20 nodes. Monitore uso de CPU e aumente réplicas ou recursos se queries estão lentas.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl top pods -n kube-system -l k8s-app=kube-dns
+NAME                      CPU(cores)   MEMORY
+coredns-abc123            180m         50Mi
+
+$ kubectl scale deploy coredns -n kube-system --replicas=5
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
 
 
 

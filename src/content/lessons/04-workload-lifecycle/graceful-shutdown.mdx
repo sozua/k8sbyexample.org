@@ -204,6 +204,47 @@ spec:
 
 <table class="example-table">
   <tbody>
+    <FileHeader filename="lb-drain-timing.yaml" />
+    <Row>
+      <p slot="docs">Load balancers and kube-proxy need time to remove endpoints. Without a preStop delay, traffic arrives after your app stops listening. The sleep gives time for endpoint removal to propagate.</p>
+      <Fragment slot="code">
+```text
+Without preStop sleep:
+t=0:    Pod deletion starts, SIGTERM sent
+t=0-5s: kube-proxy still routing traffic → 502 errors
+
+With preStop sleep:
+t=0:    Pod deletion starts, preStop begins
+t=0-15s: kube-proxy removes endpoint
+t=15s:  SIGTERM sent, no more traffic
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Use 15-30 second preStop sleep for services behind load balancers. Cloud LB backends (AWS ALB, GCP LB) may need longer delays for health check updates.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  terminationGracePeriodSeconds: 60
+  containers:
+    - name: app
+      lifecycle:
+        preStop:
+          exec:
+            command:
+              - /bin/sh
+              - -c
+              - |
+                sleep 15
+                curl -s localhost:8080/shutdown || true
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
     <TerminalHeader cmd="kubectl describe pod web-server" />
     <Row last terminal>
       <p slot="docs">Monitor shutdown behavior in Pod events. Look for preStop hook execution, SIGTERM timing, and whether the container exited cleanly or was killed after grace period.</p>

@@ -83,6 +83,60 @@ spec:
 
 <table class="example-table">
   <tbody>
+    <FileHeader filename="service-external-traffic.yaml" />
+    <Row>
+      <p slot="docs"><code>externalTrafficPolicy: Cluster</code> (padrão) faz balanceamento entre todos os nodes. Tráfego pode saltar entre nodes, causando latência extra e perdendo IP de origem.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs"><code>externalTrafficPolicy: Local</code> roteia tráfego apenas para nodes com pods. Preserva IP de origem e reduz latência, mas requer pods em todos os nodes recebendo tráfego.</p>
+      <Fragment slot="code">
+```yaml
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: my-app
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get svc my-app -o wide" />
+    <Row last terminal>
+      <p slot="docs">Com política <code>Local</code>, verifique se pods rodam em nodes recebendo tráfego. Use DaemonSet ou pod anti-affinity para garantir cobertura. Nodes sem pods retornam connection refused.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get svc my-app -o yaml | grep externalTrafficPolicy
+  externalTrafficPolicy: Local
+
+$ kubectl get pods -o wide -l app=my-app
+NAME       NODE      IP
+my-app-1   node-1    10.244.1.5
+my-app-2   node-2    10.244.2.8
+
+$ kubectl logs my-app-1
+Received request from 203.0.113.50
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
     <TerminalHeader cmd="kubectl delete svc my-app" />
     <Row last terminal>
       <p slot="docs">Cada Service LoadBalancer cria um recurso cloud separado (deletado quando o Service é deletado). Para múltiplos services, use Ingress para compartilhar um único load balancer.</p>

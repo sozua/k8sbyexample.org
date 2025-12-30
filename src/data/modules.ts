@@ -83,6 +83,7 @@ export const modules: Module[] = [
       'service-accounts',
       'rbac',
       'external-secrets',
+      'pod-security-standards',
     ],
   },
   {
@@ -95,6 +96,10 @@ export const modules: Module[] = [
       'daemonsets',
       'jobs',
       'leader-election',
+      'cluster-autoscaler',
+      'admission-webhooks',
+      'pod-priority',
+      'etcd-basics',
     ],
   },
   {

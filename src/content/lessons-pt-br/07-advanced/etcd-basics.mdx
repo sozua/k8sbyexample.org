@@ -1,0 +1,248 @@
+---
+title: "Básico de etcd"
+description: "Entender e solucionar problemas do armazenamento de estado do Kubernetes"
+order: 43
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>etcd é o key-value store distribuído do Kubernetes para todo estado do cluster: pods, services, secrets, configmaps. Se etcd está lento ou indisponível, todo o control plane para de funcionar. Entender etcd ajuda a depurar problemas misteriosos do API server e prevenir perda de dados.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods -n kube-system -l component=etcd" />
+    <Row>
+      <p slot="docs">etcd roda como um pod estático nos nodes do control plane. Em clusters HA, você tem 3 ou 5 membros etcd para tolerância a falhas (requer maioria para quórum).</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -n kube-system -l component=etcd
+NAME                      READY   STATUS    RESTARTS   AGE
+etcd-control-plane-1      1/1     Running   0          30d
+etcd-control-plane-2      1/1     Running   0          30d
+etcd-control-plane-3      1/1     Running   0          30d
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Verifique logs do etcd para erros. Problemas comuns: eleições de líder, disco lento, falhas de comunicação entre peers.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl logs -n kube-system etcd-control-plane-1 | tail -20
+elected leader at term 123
+synced raft log entries
+WARNING: slow fdatasync (500ms)    # Disco muito lento
+rejected connection from peer      # Problema de rede
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="etcdctl endpoint health" />
+    <Row>
+      <p slot="docs">Use <code>etcdctl</code> para verificar saúde do cluster. Isso requer certificados para autenticação. A maioria dos Kubernetes gerenciados não expõe etcd diretamente.</p>
+      <Fragment slot="code">
+```bash
+$ ETCDCTL_API=3 etcdctl \
+    --endpoints=https://127.0.0.1:2379 \
+    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+    --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \
+    --key=/etc/kubernetes/pki/etcd/healthcheck-client.key \
+    endpoint health
+
+https://127.0.0.1:2379 is healthy
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Verifique lista de membros e status do líder. Em um cluster saudável, exatamente um membro é o líder.</p>
+      <Fragment slot="code">
+```bash
+$ etcdctl member list --write-out=table
++------------------+-------+----------+
+|        ID        |STATUS |   NAME   |
++------------------+-------+----------+
+| 8e9e05c52164694d |started|cp-1      |
+| 91bc3c398fb3c146 |started|cp-2      |
+| fd422379fda50e48 |started|cp-3 (L)  | # (L) = Líder
++------------------+-------+----------+
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="etcdctl snapshot save" />
+    <Row>
+      <p slot="docs"><strong>Crítico</strong>: Faça backup do etcd regularmente. Esta é sua única forma de recuperar estado do cluster após falha catastrófica. Automatize com CronJob ou sistema de backup externo.</p>
+      <Fragment slot="code">
+```bash
+$ etcdctl snapshot save /backup/etcd-$(date +%Y%m%d).db \
+    --endpoints=https://127.0.0.1:2379 \
+    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+    --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \
+    --key=/etc/kubernetes/pki/etcd/healthcheck-client.key
+
+Snapshot saved at /backup/etcd-20240115.db
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Verifique integridade do backup. Armazene backups fora do cluster (S3, GCS, etc.). Teste restauração regularmente.</p>
+      <Fragment slot="code">
+```bash
+$ etcdctl snapshot status /backup/etcd-20240115.db --write-out=table
++----------+----------+------------+------------+
+|   HASH   | REVISION | TOTAL KEYS | TOTAL SIZE |
++----------+----------+------------+------------+
+| 5c4b94b7 |  1234567 |      15423 |     50 MB  |
++----------+----------+------------+------------+
+
+# Copiar para storage fora do cluster
+$ aws s3 cp /backup/etcd-20240115.db s3://my-backups/
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="etcdctl snapshot restore" />
+    <Row last>
+      <p slot="docs">Restaure de backup durante disaster recovery. Isso cria um novo diretório de dados. Você deve restaurar em todos os membros e reiniciá-los.</p>
+      <Fragment slot="code">
+```bash
+# Pare kube-apiserver primeiro
+$ systemctl stop kubelet
+
+# Restaurar snapshot
+$ etcdctl snapshot restore /backup/etcd-20240115.db \
+    --data-dir=/var/lib/etcd-restored \
+    --name=cp-1 \
+    --initial-cluster=cp-1=https://10.0.0.1:2380,cp-2=https://10.0.0.2:2380 \
+    --initial-advertise-peer-urls=https://10.0.0.1:2380
+
+# Atualize manifesto etcd para usar novo data-dir
+$ vi /etc/kubernetes/manifests/etcd.yaml
+# Mude: --data-dir=/var/lib/etcd-restored
+
+# Reinicie kubelet
+$ systemctl start kubelet
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="etcdctl defrag" />
+    <Row>
+      <p slot="docs">Database do etcd cresce ao longo do tempo e precisa de desfragmentação. Defrag recupera espaço em disco de chaves deletadas. Agende durante janelas de manutenção pois bloqueia escritas brevemente.</p>
+      <Fragment slot="code">
+```bash
+# Verificar tamanho do database
+$ etcdctl endpoint status --write-out=table
++------------------------+--------+----------+
+|       ENDPOINT         | DB SIZE| IS LEADER|
++------------------------+--------+----------+
+| https://127.0.0.1:2379 | 150 MB |   true   |
++------------------------+--------+----------+
+
+# Desfragmentar (executar em cada membro)
+$ etcdctl defrag --endpoints=https://127.0.0.1:2379
+Finished defragmenting etcd member
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Também compacte revisões antigas para prevenir crescimento ilimitado. O Kubernetes API server geralmente faz isso automaticamente.</p>
+      <Fragment slot="code">
+```bash
+# Obter revisão atual
+$ etcdctl endpoint status --write-out=json | jq '.[0].Status.header.revision'
+1234567
+
+# Compactar revisões antigas (manter últimas 10000)
+$ etcdctl compact 1224567
+
+# Depois desfragmentar para recuperar espaço
+$ etcdctl defrag
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get --raw /metrics | grep etcd" />
+    <Row>
+      <p slot="docs">Monitore performance do etcd via métricas do API server. Métricas chave: <code>etcd_request_duration_seconds</code>, <code>etcd_db_total_size_in_bytes</code>. etcd lento = API server lento.</p>
+      <Fragment slot="code">
+```bash
+# Verificar latência etcd da perspectiva do API server
+$ kubectl get --raw /metrics | grep etcd_request_duration
+etcd_request_duration_seconds_bucket{operation="get",le="0.005"} 123456
+etcd_request_duration_seconds_bucket{operation="get",le="0.5"} 234567
+# A maioria dos GETs deve completar em <5ms
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Alta latência do etcd causa lentidão do API server. Causas comuns: disco lento (use SSD), latência de rede entre membros, valores grandes (secrets/configmaps).</p>
+      <Fragment slot="code">
+```bash
+# Queries Prometheus para saúde do etcd
+# Latência de requests (deve ser <100ms)
+histogram_quantile(0.99,
+  rate(etcd_request_duration_seconds_bucket[5m]))
+
+# Tamanho do database (alerta se aproximando da quota)
+etcd_mvcc_db_total_size_in_bytes / 1024 / 1024
+
+# Mudanças de líder (deve ser raro)
+rate(etcd_server_leader_changes_seen_total[1h])
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="etcd-performance.yaml" />
+    <Row last>
+      <p slot="docs">Requisitos de performance do etcd: use SSDs (não discos giratórios), garanta baixa latência de rede entre membros, aloque memória suficiente. etcd é intensivo em CPU e I/O.</p>
+      <Fragment slot="code">
+```yaml
+# Requisitos de node etcd:
+# - Storage SSD (>50 IOPS/GB, >500MB/s)
+# - <10ms latência de rede entre membros
+# - 2-4 cores CPU dedicados
+# - 8GB+ RAM para clusters grandes
+# - Disco separado do SO (reduz contenção de I/O)
+
+# Verificar performance do disco
+$ fio --name=test --size=1G --runtime=60 \
+    --filename=/var/lib/etcd/fio-test \
+    --ioengine=sync --rw=write --fsync=1
+
+# Deve ver >500 IOPS para fdatasync
+# etcd alerta se fdatasync leva >100ms
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

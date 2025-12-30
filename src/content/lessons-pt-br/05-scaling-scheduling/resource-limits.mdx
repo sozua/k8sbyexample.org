@@ -217,6 +217,33 @@ $ kubectl get pods -o json | jq '.items[] |
   </tbody>
 </table>
 
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="cat /sys/fs/cgroup/cpu.stat" />
+    <Row>
+      <p slot="docs">Detecte throttling de CPU pelas métricas do container. CFS faz throttle de containers quando excedem seu limit, causando picos de latência mesmo quando a média de CPU parece baixa.</p>
+      <Fragment slot="code">
+```bash
+$ cat /sys/fs/cgroup/cpu.stat
+nr_periods 156432
+nr_throttled 23456
+throttled_usec 12345
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Use Prometheus para monitorar throttling em todo cluster. Considere remover limits de CPU para serviços sensíveis a latência.</p>
+      <Fragment slot="code">
+```promql
+rate(container_cpu_cfs_throttled_periods_total[5m])
+/
+rate(container_cpu_cfs_periods_total[5m])
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
 
 
 

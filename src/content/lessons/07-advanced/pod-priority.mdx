@@ -1,0 +1,271 @@
+---
+title: "Pod Priority & Preemption"
+description: "Control scheduling priority and enable critical pod preemption"
+order: 42
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Pod Priority determines scheduling order and preemption rights. Higher priority pods are scheduled first and can evict lower priority pods when resources are scarce. Use to protect critical workloads and enable graceful degradation under resource pressure.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="priorityclass.yaml" />
+    <Row>
+      <p slot="docs">PriorityClass defines a priority level. Higher <code>value</code> = higher priority. Range: -2 billion to 1 billion. System priorities use values above 1 billion.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: high-priority
+value: 1000000
+globalDefault: false
+description: "Critical production workloads"
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs"><code>preemptionPolicy</code> controls whether this priority can evict others. <code>PreemptLowerPriority</code> (default) allows eviction. <code>Never</code> disables it.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: high-priority-no-preempt
+value: 1000000
+preemptionPolicy: Never      # Won't evict other pods
+description: "High priority but won't preempt"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="priority-tiers.yaml" />
+    <Row last>
+      <p slot="docs">Create a priority tier system for your cluster. Common pattern: system-critical > production > staging > batch. Leave gaps between values for future tiers.</p>
+      <Fragment slot="code">
+```yaml
+# Tier 1: System critical (never evict)
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: system-critical
+value: 2000000
+---
+# Tier 2: Production workloads
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: production
+value: 1000000
+---
+# Tier 3: Staging/testing
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: staging
+value: 500000
+---
+# Tier 4: Batch/background jobs
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: batch
+value: 100000
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="deployment-priority.yaml" />
+    <Row last>
+      <p slot="docs">Reference the PriorityClass in your Pod spec. The scheduler uses this to order pending pods and determine preemption eligibility.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      priorityClassName: production    # High priority
+      containers:
+        - name: gateway
+          image: api-gateway:v1
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get priorityclasses" />
+    <Row>
+      <p slot="docs">View all priority classes including built-in system priorities. <code>system-cluster-critical</code> and <code>system-node-critical</code> are reserved for essential system pods.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get priorityclasses
+NAME                      VALUE        GLOBAL-DEFAULT
+system-cluster-critical   2000000000   false
+system-node-critical      2000001000   false
+production                1000000      false
+staging                   500000       false
+batch                     100000       true   # Default
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Check which priority class a pod is using. Pods without explicit priorityClassName use the globalDefault or default to 0.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -o custom-columns=\
+    NAME:.metadata.name,\
+    PRIORITY:.spec.priorityClassName,\
+    VALUE:.spec.priority
+NAME          PRIORITY     VALUE
+api-gateway   production   1000000
+worker-job    batch        100000
+misc-pod      <none>       0
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get events | grep Preempted" />
+    <Row>
+      <p slot="docs">When preemption occurs, lower-priority pods are evicted to make room. Events show which pods were preempted and why.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get events | grep -i preempt
+1m   Normal   Preempted   pod/worker-job-123
+     Preempted by prod/api-gateway-456 on node worker-1
+
+$ kubectl describe pod api-gateway-456 | grep -A5 Events
+Events:
+  Type    Reason     Message
+  ----    ------     -------
+  Normal  Scheduled  Preempting 2 pods: [worker-job-123, batch-456]
+  Normal  Pulling    Pulling image "api-gateway:v1"
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Preempted pods are terminated gracefully (SIGTERM, grace period). They appear with <code>Reason: Preempting</code> in events.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods
+NAME              READY   STATUS        AGE
+api-gateway-456   1/1     Running       30s
+worker-job-123    1/1     Terminating   5m   # Being preempted
+
+$ kubectl describe pod worker-job-123 | grep -A3 Status
+Status:       Terminating
+Reason:       Preempting
+Message:      Preempted by higher priority pod
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pdb-with-priority.yaml" />
+    <Row>
+      <p slot="docs">PodDisruptionBudgets interact with preemption. A PDB can prevent preemption if it would violate the disruption budget. Use PDB to protect critical services.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+# If preempting api-gateway would drop below
+# 2 available pods, preemption is blocked
+# The pending high-priority pod stays Pending
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Combine priority with PDB for layered protection. High priority prevents eviction by lower priority pods. PDB prevents eviction by any voluntary disruption.</p>
+      <Fragment slot="code">
+```yaml
+# Critical service: high priority + strict PDB
+priorityClassName: production
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+spec:
+  minAvailable: "50%"
+  selector:
+    matchLabels:
+      app: critical-service
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="avoid-cascade.yaml" />
+    <Row last>
+      <p slot="docs"><strong>Warning</strong>: Priority misconfiguration causes cascading evictions. If many high-priority pods become Pending, they can evict entire workloads. Use ResourceQuotas to limit high-priority pod counts.</p>
+      <Fragment slot="code">
+```yaml
+# Limit high-priority pods per namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: priority-quota
+  namespace: production
+spec:
+  hard:
+    pods: "100"
+  scopeSelector:
+    matchExpressions:
+      - operator: In
+        scopeName: PriorityClass
+        values:
+          - production
+          - system-critical
+# Max 100 high-priority pods in this namespace
+# Prevents runaway high-priority deployments
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+

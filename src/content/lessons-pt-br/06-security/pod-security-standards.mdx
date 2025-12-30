@@ -1,0 +1,285 @@
+---
+title: "Pod Security Standards"
+description: "Aplicar políticas de segurança no nível de namespace"
+order: 28
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>Pod Security Standards (PSS) substituem a deprecada PodSecurityPolicy. Definem três níveis de segurança: Privileged (sem restrições), Baseline (previne escalações conhecidas), Restricted (hardened). Aplique via labels de namespace sem instalar controllers adicionais.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="namespace-baseline.yaml" />
+    <Row>
+      <p slot="docs">Aplique security standards via labels de namespace. O label <code>pod-security.kubernetes.io/enforce</code> define o nível requerido. Pods violando a política são rejeitados.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Três modos: <code>enforce</code> (rejeita), <code>audit</code> (loga), <code>warn</code> (avisa usuário). Use audit/warn para testar antes de enforçar.</p>
+      <Fragment slot="code">
+```yaml
+metadata:
+  labels:
+    # Rejeitar violações
+    pod-security.kubernetes.io/enforce: baseline
+    # Logar violações (para monitoramento)
+    pod-security.kubernetes.io/audit: restricted
+    # Avisar no kubectl apply
+    pod-security.kubernetes.io/warn: restricted
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="security-levels.yaml" />
+    <Row>
+      <p slot="docs"><strong>Privileged</strong>: Sem restrições. Use para componentes de sistema que precisam de acesso total (plugins CNI, agentes de monitoramento).</p>
+      <Fragment slot="code">
+```yaml
+# Privileged: permite tudo
+# - hostNetwork, hostPID, hostIPC
+# - containers privilegiados
+# - qualquer capability
+# - qualquer volume
+# - rodar como root
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kube-system
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs"><strong>Baseline</strong>: Previne escalações de privilégio conhecidas. Padrão razoável para maioria dos workloads. Bloqueia hostNetwork, privileged e capabilities perigosas.</p>
+      <Fragment slot="code">
+```yaml
+# Baseline bloqueia:
+# - hostNetwork, hostPID, hostIPC
+# - privileged: true
+# - capabilities: SYS_ADMIN, NET_ADMIN, etc.
+# - volumes hostPath
+# - hostPorts
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs"><strong>Restricted</strong>: Máxima segurança. Requer non-root, dropa todas capabilities, filesystem root read-only. Use para workloads sensíveis.</p>
+      <Fragment slot="code">
+```yaml
+# Restricted adicionalmente requer:
+# - runAsNonRoot: true
+# - allowPrivilegeEscalation: false
+# - capabilities.drop: ALL
+# - seccompProfile: RuntimeDefault
+# - runAsUser: diferente de zero
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-baseline-compliant.yaml" />
+    <Row last>
+      <p slot="docs">Um pod compatível com baseline. Sem hostNetwork, sem modo privileged, sem capabilities perigosas. Maioria das aplicações funciona com baseline.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+  namespace: staging       # baseline enforçado
+spec:
+  containers:
+    - name: app
+      image: myapp:v1
+      ports:
+        - containerPort: 8080
+      securityContext:
+        allowPrivilegeEscalation: false
+        # Sem privileged: true
+        # Sem hostNetwork, hostPID, hostIPC
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="pod-restricted-compliant.yaml" />
+    <Row last>
+      <p slot="docs">Um pod compatível com restricted. Roda como non-root, dropa todas capabilities, usa seccomp. Esta é a configuração mais segura.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+  namespace: production    # restricted enforçado
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: app
+      image: myapp:v1
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: tmp
+      emptyDir: {}
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl apply -f pod.yaml" />
+    <Row>
+      <p slot="docs">Quando um pod viola a política, é rejeitado com uma mensagem de erro clara explicando quais campos não são compatíveis.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl apply -f privileged-pod.yaml
+Error from server (Forbidden): pods "bad-pod" is forbidden:
+  violates PodSecurity "baseline:latest":
+  privileged (container "app" must not set
+    securityContext.privileged=true)
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Use <code>--dry-run=server</code> para testar pods contra políticas de namespace sem criá-los.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl apply -f pod.yaml --dry-run=server
+pod/app created (server dry run)
+
+# Verificar warnings para política restricted
+$ kubectl apply -f pod.yaml
+Warning: would violate PodSecurity "restricted:latest":
+  runAsNonRoot must be true
+pod/app created  # Baseline permitido, restricted avisou
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get ns --show-labels" />
+    <Row>
+      <p slot="docs">Audite quais namespaces têm políticas de segurança. Namespaces sem labels default para privileged (sem restrições).</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get ns --show-labels | grep pod-security
+default      pod-security.kubernetes.io/warn=baseline
+kube-system  pod-security.kubernetes.io/enforce=privileged
+production   pod-security.kubernetes.io/enforce=restricted
+staging      pod-security.kubernetes.io/enforce=baseline
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Aplique baseline para todos novos namespaces por padrão usando um admission controller ou política GitOps.</p>
+      <Fragment slot="code">
+```bash
+# Adicionar política em namespace existente
+$ kubectl label ns myapp \
+    pod-security.kubernetes.io/enforce=baseline \
+    pod-security.kubernetes.io/warn=restricted
+
+# Verificar o que seria bloqueado
+$ kubectl get pods -n myapp -o yaml | \
+    kubectl apply -f - --dry-run=server 2>&1 | \
+    grep -i "forbidden\|warning"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="exemptions.yaml" />
+    <Row last>
+      <p slot="docs">Alguns componentes de sistema precisam de exceções. Configure o API server com <code>--admission-control-config-file</code> para isentar usuários, namespaces ou runtime classes específicos.</p>
+      <Fragment slot="code">
+```yaml
+# /etc/kubernetes/admission-control-config.yaml
+apiVersion: apiserver.config.k8s.io/v1
+kind: AdmissionConfiguration
+plugins:
+  - name: PodSecurity
+    configuration:
+      apiVersion: pod-security.admission.config.k8s.io/v1
+      kind: PodSecurityConfiguration
+      defaults:
+        enforce: baseline
+        audit: restricted
+        warn: restricted
+      exemptions:
+        usernames:
+          - system:serviceaccount:kube-system:*
+        namespaces:
+          - kube-system
+          - istio-system
+        runtimeClasses:
+          - gvisor
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+
+
+
