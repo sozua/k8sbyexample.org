@@ -14,7 +14,7 @@
 
 ## What is Kubernetes by Example?
 
-Kubernetes by Example is an interactive learning resource that teaches Kubernetes through annotated YAML examples. Learn by reading production-ready patterns with side-by-side explanations.
+Kubernetes concepts explained through annotated examples. Inspired by [Go by Example](https://gobyexample.com).
 
 ## Topics
 
