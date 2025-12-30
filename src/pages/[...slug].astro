@@ -47,6 +47,12 @@ const { Content } = await entry.render();
 
 <Layout title={`K8s by Example: ${entry.data.title}`} description={entry.data.description}>
   <SectionProgress currentSlug={slug} allLessons={allLessons} />
+  <div class="fixed top-4 right-4 flex gap-3 text-[13px] text-white/40 z-50">
+    <a href="https://github.com/sozua/k8sbyexample.org" class="text-white/40 hover:text-white/70">GitHub</a>
+    <button id="grain-toggle" class="text-white/40 hover:text-white/70">grain: <span id="grain-status">on</span></button>
+    <span class="text-white/70">EN</span>
+    <a href={`/pt-br/${slug}`} class="text-white/40 hover:text-white/70">PT</a>
+  </div>
   <main class="max-w-[900px] mx-auto mb-24 px-6 max-md:px-4">
     <h2>
       <a href="/">K8s by Example</a>: {entry.data.title}
@@ -61,13 +67,7 @@ const { Content } = await entry.render();
 
     <p class="mt-12 text-[13px] text-white/35">
       <a href="/" class="text-white/35 hover:underline">Index</a> |
-      <a href="https://github.com/sozua/k8sbyexample.org" class="text-white/35 hover:underline">GitHub</a> |
-      Use arrow keys to navigate |
-      <button
-        id="grain-toggle"
-        class="text-white/35 hover:underline hover:text-white/35"
-        >grain: <span id="grain-status">on</span></button
-      >
+      Use arrow keys to navigate
     </p>
   </main>
   <script>

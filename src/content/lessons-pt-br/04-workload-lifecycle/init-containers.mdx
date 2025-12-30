@@ -64,8 +64,8 @@ spec:
 <table class="example-table">
   <tbody>
     <FileHeader filename="pod-init-volume.yaml" />
-    <Row last>
-      <p slot="docs">Init containers compartilham volumes com containers de app. Baixe arquivos, gere config, clone repos ou prepare dados. Volumes <code>emptyDir</code> persistem entre init e app containers.</p>
+    <Row>
+      <p slot="docs">Init containers podem baixar arquivos, gerar config, clonar repos ou preparar dados antes da app iniciar. Aqui o init container baixa um arquivo de configuração para um volume compartilhado.</p>
       <Fragment slot="code">
 ```yaml
 spec:
@@ -77,12 +77,26 @@ spec:
       volumeMounts:
         - name: data
           mountPath: /data
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">O container de app monta o mesmo volume e lê os dados preparados pelo init container. Ambos containers referenciam o mesmo nome de volume.</p>
+      <Fragment slot="code">
+```yaml
   containers:
     - name: app
       image: my-app:v1
       volumeMounts:
         - name: data
           mountPath: /app/data
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs"><code>emptyDir</code> cria um diretório temporário compartilhado entre containers. Persiste entre init e app containers mas é deletado quando o Pod termina.</p>
+      <Fragment slot="code">
+```yaml
   volumes:
     - name: data
       emptyDir: {}

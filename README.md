@@ -30,6 +30,8 @@ Kubernetes by Example is an interactive learning resource that teaches Kubernete
   - [Deployments](https://k8sbyexample.org/deployments)
   - [ReplicaSets](https://k8sbyexample.org/replicasets)
   - [Services](https://k8sbyexample.org/services)
+  - [Services: NodePort](https://k8sbyexample.org/services-nodeport)
+  - [Services: LoadBalancer](https://k8sbyexample.org/services-loadbalancer)
 
 - Configuration
   - [ConfigMaps](https://k8sbyexample.org/configmaps)
@@ -43,27 +45,43 @@ Kubernetes by Example is an interactive learning resource that teaches Kubernete
 
 - Workload Lifecycle
   - [Init Containers](https://k8sbyexample.org/init-containers)
-  - [Probes](https://k8sbyexample.org/liveness-probes)
+  - [Liveness Probes](https://k8sbyexample.org/liveness-probes)
+  - [Readiness Probes](https://k8sbyexample.org/readiness-probes)
+  - [Startup Probes](https://k8sbyexample.org/startup-probes)
+  - [Lifecycle Hooks](https://k8sbyexample.org/lifecycle-hooks)
   - [Rolling Updates](https://k8sbyexample.org/rolling-updates)
   - [Graceful Shutdown](https://k8sbyexample.org/graceful-shutdown)
+  - [Canary Deployments](https://k8sbyexample.org/canary-deployments)
 
 - Scaling & Scheduling
   - [Resource Limits](https://k8sbyexample.org/resource-limits)
+  - [Resource Quotas](https://k8sbyexample.org/resource-quotas)
   - [HPA](https://k8sbyexample.org/hpa)
   - [Node Affinity](https://k8sbyexample.org/node-affinity)
+  - [Pod Affinity](https://k8sbyexample.org/pod-affinity)
+  - [Pod Anti-Affinity](https://k8sbyexample.org/pod-anti-affinity)
   - [Taints & Tolerations](https://k8sbyexample.org/taints-tolerations)
+  - [Topology Spread](https://k8sbyexample.org/topology-spread)
   - [Pod Disruption Budgets](https://k8sbyexample.org/pdb)
 
 - Security
   - [Security Context](https://k8sbyexample.org/security-context)
   - [Service Accounts](https://k8sbyexample.org/service-accounts)
   - [RBAC](https://k8sbyexample.org/rbac)
+  - [External Secrets](https://k8sbyexample.org/external-secrets)
+  - [Pod Security Standards](https://k8sbyexample.org/pod-security-standards)
 
 - Advanced
   - [Kustomize](https://k8sbyexample.org/kustomize)
+  - [Kustomize Overlays](https://k8sbyexample.org/kustomize-overlays)
   - [StatefulSets](https://k8sbyexample.org/statefulsets)
   - [DaemonSets](https://k8sbyexample.org/daemonsets)
   - [Jobs](https://k8sbyexample.org/jobs)
+  - [Leader Election](https://k8sbyexample.org/leader-election)
+  - [Cluster Autoscaler](https://k8sbyexample.org/cluster-autoscaler)
+  - [Admission Webhooks](https://k8sbyexample.org/admission-webhooks)
+  - [Pod Priority](https://k8sbyexample.org/pod-priority)
+  - [etcd Basics](https://k8sbyexample.org/etcd-basics)
 
 - Storage
   - [Persistent Volumes](https://k8sbyexample.org/persistent-volumes)

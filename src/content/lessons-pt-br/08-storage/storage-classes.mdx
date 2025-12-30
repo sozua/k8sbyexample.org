@@ -84,8 +84,8 @@ volumeBindingMode: WaitForFirstConsumer
 <table class="example-table">
   <tbody>
     <FileHeader filename="storageclass-params.yaml" />
-    <Row last>
-      <p slot="docs">Parameters são passados para o provisioner. Primeiro exemplo: AWS EBS com criptografia e IOPS customizado. Segundo exemplo: Azure com tier específico. Terceiro exemplo: GCE com replicação multi-zone. Verifique documentação do seu driver CSI para opções disponíveis.</p>
+    <Row>
+      <p slot="docs">Parâmetros AWS EBS: defina tipo de volume, IOPS, criptografia com chave KMS e tipo de filesystem. Verifique a documentação do driver EBS CSI para todas opções.</p>
       <Fragment slot="code">
 ```yaml
 parameters:
@@ -94,12 +94,24 @@ parameters:
   encrypted: "true"
   kmsKeyId: arn:aws:kms:us-west-2:123456789:key/abcd-1234
   fsType: ext4
----
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">Parâmetros Azure Disk: defina SKU (Standard_LRS, Premium_LRS, StandardSSD_LRS), modo de cache e tipo de filesystem.</p>
+      <Fragment slot="code">
+```yaml
 parameters:
   skuName: Premium_LRS
   cachingMode: ReadOnly
   fsType: ext4
----
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Parâmetros GCE PD: defina tipo de disco e habilite replicação regional para alta disponibilidade entre zonas.</p>
+      <Fragment slot="code">
+```yaml
 parameters:
   type: pd-ssd
   replication-type: regional-pd

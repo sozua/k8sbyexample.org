@@ -70,8 +70,8 @@ spec:
 <table class="example-table">
   <tbody>
     <FileHeader filename="pv-cloud.yaml" />
-    <Row last>
-      <p slot="docs">Volumes de cloud provider usam fontes de volume específicas. Primeiro exemplo: AWS EBS. Segundo exemplo: GCE Persistent Disk. Terceiro exemplo: NFS. Para produção, use provisionamento dinâmico via StorageClass em vez de criar PVs manualmente.</p>
+    <Row>
+      <p slot="docs">Volume AWS EBS: referencia um volume EBS existente pelo ID. Volumes EBS são apenas RWO e devem estar na mesma AZ que o node. Para produção, use provisionamento dinâmico via StorageClass.</p>
       <Fragment slot="code">
 ```yaml
 spec:
@@ -81,12 +81,24 @@ spec:
   awsElasticBlockStore:
     volumeID: vol-0123456789abcdef0
     fsType: ext4
----
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">GCE Persistent Disk: referencia um disco GCE pelo nome. Similar ao EBS, PDs são zonais e RWO.</p>
+      <Fragment slot="code">
+```yaml
 spec:
   gcePersistentDisk:
     pdName: my-disk
     fsType: ext4
----
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Volume NFS: monta um filesystem de rede. Suporta RWX (múltiplos nodes leitura-escrita), sendo adequado para storage compartilhado.</p>
+      <Fragment slot="code">
+```yaml
 spec:
   nfs:
     server: nfs-server.example.com
@@ -129,15 +141,21 @@ spec:
 <table class="example-table">
   <tbody>
     <FileHeader filename="pv-block.yaml" />
-    <Row last>
-      <p slot="docs">Modos de volume: <code>Filesystem</code> (padrão) monta como diretório. <code>Block</code> expõe dispositivo de bloco raw sem filesystem. Segundo exemplo mostra volume Block em Pod usando <code>volumeDevices</code> (não volumeMounts). Modo Block é para bancos de dados que gerenciam seu próprio formato de storage.</p>
+    <Row>
+      <p slot="docs"><code>volumeMode: Filesystem</code> (padrão) monta o PV como diretório. O storage é formatado com um filesystem (ext4, xfs) e montado no container.</p>
       <Fragment slot="code">
 ```yaml
 spec:
   volumeMode: Filesystem
   capacity:
     storage: 10Gi
----
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs"><code>volumeMode: Block</code> expõe dispositivo de bloco raw sem filesystem. Use <code>volumeDevices</code> (não volumeMounts) no spec do Pod. Modo Block é para bancos de dados que gerenciam seu próprio formato de storage.</p>
+      <Fragment slot="code">
+```yaml
 spec:
   containers:
     - name: app

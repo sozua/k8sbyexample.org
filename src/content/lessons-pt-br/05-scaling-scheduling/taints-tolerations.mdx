@@ -87,6 +87,124 @@ tolerations:
 
 <table class="example-table">
   <tbody>
+    <TerminalHeader cmd="kubectl taint nodes gpu-node-1 nvidia.com/gpu=true:NoSchedule" />
+    <Row>
+      <p slot="docs">Nós GPU dedicados para inferência LLM: aplique taint em nós GPU para prevenir workloads regulares de agendar lá. Também adicione labels para direcionamento via affinity. Taints repelem, labels atraem.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl taint nodes gpu-node-1 nvidia.com/gpu=true:NoSchedule
+node/gpu-node-1 tainted
+
+$ kubectl taint nodes gpu-node-2 nvidia.com/gpu=true:NoSchedule
+node/gpu-node-2 tainted
+
+$ kubectl label nodes gpu-node-1 gpu-node-2 accelerator=nvidia-a100
+node/gpu-node-1 labeled
+node/gpu-node-2 labeled
+```
+      </Fragment>
+    </Row>
+    <Row last terminal>
+      <p slot="docs">Verifique se taints foram aplicados. Nós GPU agora rejeitam Pods sem tolerations correspondentes. Workloads regulares automaticamente agendam em nós apenas CPU.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get nodes -L accelerator
+NAME         STATUS   ROLES    ACCELERATOR
+cpu-node-1   Ready    <none>
+cpu-node-2   Ready    <none>
+gpu-node-1   Ready    <none>   nvidia-a100
+gpu-node-2   Ready    <none>   nvidia-a100
+
+$ kubectl describe node gpu-node-1 | grep Taints
+Taints:             nvidia.com/gpu=true:NoSchedule
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <FileHeader filename="llm-inference-deployment.yaml" />
+    <Row>
+      <p slot="docs">Deployment de inferência LLM com toleration GPU. A toleration permite agendamento em nós GPU com taint. Sem ela, o scheduler rejeita o Pod dos nós GPU.</p>
+      <Fragment slot="code">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-inference
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: llm-inference
+  template:
+    metadata:
+      labels:
+        app: llm-inference
+    spec:
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Combine toleration com nodeAffinity para garantir que Pods rodem apenas em nós GPU. Toleration permite nós GPU; affinity requer eles. Solicite recurso <code>nvidia.com/gpu</code> para alocação real de GPU.</p>
+      <Fragment slot="code">
+```yaml
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: accelerator
+                    operator: In
+                    values: ["nvidia-a100"]
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+          ports:
+            - containerPort: 8000
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods -o wide" />
+    <Row last terminal>
+      <p slot="docs">Verifique o posicionamento: Pods LLM rodam em nós GPU, Pods regulares sem tolerations vão para nós CPU. Taints protegem capacidade GPU cara de workloads não-GPU.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -o wide
+NAME                   READY   NODE
+llm-inference-abc12    1/1     gpu-node-1
+llm-inference-def34    1/1     gpu-node-2
+web-frontend-xyz99     1/1     cpu-node-1
+
+$ kubectl run test --image=nginx
+pod/test created
+
+$ kubectl get pod test -o wide
+NAME   READY   STATUS    NODE
+test   1/1     Running   cpu-node-1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
     <TerminalHeader cmd="kubectl taint nodes" />
     <Row last terminal>
       <p slot="docs">Gerencie taints com kubectl. Adicione taints para repelir Pods, remova taints (com sufixo menos) para permitir agendamento.</p>

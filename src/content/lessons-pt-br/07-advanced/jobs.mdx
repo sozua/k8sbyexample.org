@@ -83,17 +83,29 @@ spec:
 <table class="example-table">
   <tbody>
     <FileHeader filename="job-modes.yaml" />
-    <Row last>
-      <p slot="docs">Jobs paralelos têm três modos. Primeiro exemplo: contagem fixa de completion (executa 10 total, 3 por vez). Segundo exemplo: fila de trabalho (sem completions = Pods coordenam, feito quando qualquer Pod sai com 0). Terceiro exemplo: Pod único (padrão).</p>
+    <Row>
+      <p slot="docs">Contagem fixa de completion: executa exatamente N Pods total com M rodando por vez. Aqui 10 Pods rodarão, 3 concorrentemente. Job completa quando todos 10 tiverem sucesso.</p>
       <Fragment slot="code">
 ```yaml
 spec:
   completions: 10
   parallelism: 3
----
+```
+      </Fragment>
+    </Row>
+    <Row>
+      <p slot="docs">Modo fila de trabalho: sem <code>completions</code> definido, Pods se coordenam. Job termina quando qualquer Pod sai com 0. Use para processamento baseado em fila onde Pods puxam trabalho até esvaziar.</p>
+      <Fragment slot="code">
+```yaml
 spec:
   parallelism: 5
----
+```
+      </Fragment>
+    </Row>
+    <Row last>
+      <p slot="docs">Modo Pod único (padrão): executa um Pod até completar. Ambos valores padrão são 1 se não especificados.</p>
+      <Fragment slot="code">
+```yaml
 spec:
   completions: 1
   parallelism: 1
