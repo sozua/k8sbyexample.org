@@ -12,10 +12,6 @@
   <br />
 </div>
 
-## What is Kubernetes by Example?
-
-Kubernetes concepts explained through annotated examples. Inspired by [Go by Example](https://gobyexample.com).
-
 ## Topics
 
 - Architecture
