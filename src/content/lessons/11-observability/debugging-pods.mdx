@@ -1,0 +1,273 @@
+---
+title: "Debugging Pods"
+description: "Systematic approach to troubleshooting failing pods"
+order: 58
+---
+import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+
+
+<Intro>
+  <p>When a Pod fails, work through this systematic checklist: check status, read events, inspect logs, then get inside. Most issues fall into three categories: image problems, application crashes, or resource constraints.</p>
+</Intro>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get pods -o wide" />
+    <Row last terminal>
+      <p slot="docs">Start here. Status tells you where to look next. <code>ImagePullBackOff</code> = image problem. <code>CrashLoopBackOff</code> = app crashes at startup. <code>Pending</code> = scheduling issue. <code>Running</code> but not ready = probe failing.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get pods -o wide
+NAME        READY   STATUS             RESTARTS   AGE   NODE
+api-6f7d8   0/1     ImagePullBackOff   0          2m    worker-1
+db-8k2x9    0/1     CrashLoopBackOff   5          10m   worker-2
+web-3n4m5   0/1     Pending            0          5m    <none>
+cache-9z8y  1/1     Running            0          1h    worker-1
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe pod api-6f7d8" />
+    <Row last terminal>
+      <p slot="docs">Events section at the bottom is gold. It shows the sequence of what happened. For <code>ImagePullBackOff</code>, you'll see the exact error - wrong tag, private registry auth, or network issues.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe pod api-6f7d8 | tail -15
+Events:
+  Type     Reason     Age                From               Message
+  ----     ------     ----               ----               -------
+  Normal   Scheduled  3m                 default-scheduler  Assigned to worker-1
+  Normal   Pulling    90s (x4 over 3m)   kubelet            Pulling image "api:v2.1"
+  Warning  Failed     88s (x4 over 3m)   kubelet            Failed to pull image "api:v2.1": rpc error: code = NotFound
+  Warning  Failed     88s (x4 over 3m)   kubelet            Error: ErrImagePull
+  Normal   BackOff    75s (x6 over 3m)   kubelet            Back-off pulling image "api:v2.1"
+  Warning  Failed     75s (x6 over 3m)   kubelet            Error: ImagePullBackOff
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl logs db-8k2x9 --previous" />
+    <Row last terminal>
+      <p slot="docs">For <code>CrashLoopBackOff</code>, the app started but exited. <code>--previous</code> shows logs from the last crashed container. Without it, you might see an empty log if the new container hasn't written anything yet.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl logs db-8k2x9 --previous
+2024-01-15 10:30:00 Starting database...
+2024-01-15 10:30:01 Loading config from /etc/db/config.yaml
+2024-01-15 10:30:01 ERROR: Config file not found
+2024-01-15 10:30:01 Exiting with code 1
+
+$ kubectl logs db-8k2x9 -f
+$ kubectl logs db-8k2x9 --since=5m
+$ kubectl logs db-8k2x9 --tail=100
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl describe pod web-3n4m5" />
+    <Row last terminal>
+      <p slot="docs"><code>Pending</code> means the scheduler can't place the Pod. Check events for why: insufficient CPU/memory, no nodes match affinity rules, or all nodes are tainted. The <code>NODE</code> column shows <code>&lt;none&gt;</code>.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl describe pod web-3n4m5 | tail -10
+Events:
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ----               -------
+  Warning  FailedScheduling  5m    default-scheduler  0/3 nodes are available:
+           1 Insufficient cpu, 2 node(s) had taint
+           {node-role.kubernetes.io/master: }, that the pod didn't tolerate.
+
+$ kubectl describe nodes | grep -A5 "Allocated resources"
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl exec -it cache-9z8y -- sh" />
+    <Row last terminal>
+      <p slot="docs">Pod is Running but something's wrong? Get inside. Check if the process is listening, test network connectivity, verify mounted files exist. Use <code>-c container-name</code> for multi-container Pods.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl exec -it cache-9z8y -- sh
+
+/ $ ps aux
+PID   USER     COMMAND
+1     redis    redis-server *:6379
+
+/ $ netstat -tlnp
+Proto Local Address   State       PID/Program
+tcp   0.0.0.0:6379   LISTEN      1/redis-server
+
+/ $ nslookup api-service
+Server:    10.96.0.10
+Address:   10.96.0.10:53
+Name:      api-service.default.svc.cluster.local
+Address:   10.100.45.23
+
+/ $ wget -qO- http://api-service:8080/health
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl debug api-6f7d8 -it --image=busybox" />
+    <Row last terminal>
+      <p slot="docs">Can't exec because container keeps crashing? Use ephemeral debug containers. This attaches a new container to the Pod's namespaces so you can inspect the environment even when the main container won't start.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl debug api-6f7d8 -it --image=busybox --target=api
+Targeting container "api". If you don't see processes, try --share-processes
+/ $
+
+/ $ ls -la /etc/config/
+total 12
+drwxr-xr-x    2 root     root          4096 Jan 15 10:30 .
+-rw-r--r--    1 root     root           156 Jan 15 10:30 database.conf
+
+/ $ env | grep DATABASE
+DATABASE_URL=postgres://db:5432/myapp
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl debug node/worker-1 -it --image=busybox" />
+    <Row last terminal>
+      <p slot="docs">Debug at the node level. Useful for checking kubelet logs, disk space, or network issues that affect all Pods on a node. The debug Pod gets host PID/network namespace access.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl debug node/worker-1 -it --image=busybox
+Creating debugging pod node-debugger-worker-1-abc123
+
+/ $ chroot /host
+
+$ journalctl -u kubelet --since "10 minutes ago" | tail -50
+
+$ df -h
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1       100G   95G    5G  95% /
+
+$ crictl ps -a | grep -i exited
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl run debug --rm -it --image=nicolaka/netshoot -- bash" />
+    <Row last terminal>
+      <p slot="docs">Network debugging needs tools most app images don't have. <code>netshoot</code> has curl, dig, nmap, tcpdump, and more. Great for testing Service connectivity, DNS, and network policies.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl run debug --rm -it --image=nicolaka/netshoot -- bash
+
+bash-5.1$ dig +short api-service.default.svc.cluster.local
+10.100.45.23
+
+bash-5.1$ nc -zv api-service 8080
+Connection to api-service 8080 port [tcp/*] succeeded!
+
+bash-5.1$ curl -v http://api-service:8080/health
+
+bash-5.1$ mtr --report api-service
+
+bash-5.1$ tcpdump -i eth0 port 8080 -w /tmp/capture.pcap
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl get events --sort-by='.lastTimestamp'" />
+    <Row last terminal>
+      <p slot="docs">Cluster-wide view of what's happening. Events disappear after 1 hour by default. Filter by namespace, type, or involved object. Warnings are usually the interesting ones.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl get events --sort-by='.lastTimestamp' | tail -20
+
+$ kubectl get events --field-selector type=Warning
+
+$ kubectl get events --field-selector involvedObject.name=api-6f7d8
+
+$ kubectl get events -w
+0s    Warning   FailedMount   pod/api-6f7d8   MountVolume.SetUp failed
+0s    Normal    Pulled        pod/db-8k2x9    Container image pulled
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl top pods --sort-by=memory" />
+    <Row last terminal>
+      <p slot="docs">Resource issues cause OOMKills and throttling. <code>top</code> shows actual usage (requires metrics-server). Compare against limits. High restart count often means OOMKilled.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl top pods --sort-by=memory
+NAME        CPU(cores)   MEMORY(bytes)
+api-6f7d8   250m         512Mi
+db-8k2x9    100m         1024Mi
+web-3n4m5   50m          128Mi
+
+$ kubectl get pod db-8k2x9 -o jsonpath='{.status.containerStatuses[0].lastState.terminated.reason}'
+OOMKilled
+
+$ kubectl describe pod api-6f7d8 | grep -A2 Limits
+    Limits:
+      cpu:     500m
+      memory:  256Mi
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+<table class="example-table">
+  <tbody>
+    <TerminalHeader cmd="kubectl port-forward pod/db-8k2x9 5432:5432" />
+    <Row last terminal>
+      <p slot="docs">Need to connect to a Pod directly? Port-forward creates a tunnel from localhost. Useful for database access, testing endpoints, or connecting debuggers. Stays open until Ctrl+C.</p>
+      <Fragment slot="code">
+```bash
+$ kubectl port-forward pod/db-8k2x9 5432:5432 &
+Forwarding from 127.0.0.1:5432 -> 5432
+
+$ psql -h localhost -p 5432 -U admin mydb
+
+$ kubectl port-forward svc/api-service 8080:80
+
+$ kubectl port-forward pod/api-6f7d8 8080:80 9090:9090
+```
+      </Fragment>
+    </Row>
+  </tbody>
+</table>
+
+

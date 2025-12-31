@@ -67,6 +67,7 @@ export const modules: Module[] = [
       'rolling-updates',
       'graceful-shutdown',
       'canary-deployments',
+      'production-checklist',
     ],
   },
   {
@@ -136,6 +137,7 @@ export const modules: Module[] = [
       'prometheus-monitoring',
       'logging-patterns',
       'distributed-tracing',
+      'debugging-pods',
     ],
   },
 ];
