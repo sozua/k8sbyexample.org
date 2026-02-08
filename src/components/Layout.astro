@@ -49,25 +49,7 @@ const ogImage = `${siteUrl}/images/og-image.png`;
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <title>{title}</title>
   </head>
-  <body class="min-h-screen bg-dark bg-gradient bg-noise">
+  <body class="min-h-screen bg-dark">
     <slot />
-    <script is:inline>
-      (function() {
-        const KEY = 'grain-enabled';
-        const saved = localStorage.getItem(KEY);
-        if (saved === 'false') {
-          document.body.classList.remove('bg-noise', 'bg-gradient');
-        }
-        window.toggleGrain = function() {
-          const isEnabled = document.body.classList.toggle('bg-noise');
-          document.body.classList.toggle('bg-gradient', isEnabled);
-          localStorage.setItem(KEY, isEnabled);
-          return isEnabled;
-        };
-        window.isGrainEnabled = function() {
-          return document.body.classList.contains('bg-noise');
-        };
-      })();
-    </script>
   </body>
 </html>

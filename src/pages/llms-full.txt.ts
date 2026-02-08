@@ -15,10 +15,7 @@ export const GET: APIRoute = async () => {
     lifecycle: 'Workload Lifecycle',
     scaling: 'Scaling & Scheduling',
     security: 'Security',
-    advanced: 'Advanced',
     storage: 'Storage',
-    patterns: 'Multi-Container Patterns',
-    observability: 'Observability',
   };
 
   let content = `# Kubernetes by Example - Full Documentation

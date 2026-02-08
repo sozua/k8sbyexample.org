@@ -49,7 +49,6 @@ const { Content } = await entry.render();
   <SectionProgress currentSlug={slug} allLessons={allLessons} />
   <div class="fixed top-4 right-4 flex gap-3 text-[13px] text-white/40 z-50">
     <a href="https://github.com/sozua/k8sbyexample.org" class="text-white/40 hover:text-white/70">GitHub</a>
-    <button id="grain-toggle" class="text-white/40 hover:text-white/70">grain: <span id="grain-status">on</span></button>
     <span class="text-white/70">EN</span>
     <a href={`/pt-br/${slug}`} class="text-white/40 hover:text-white/70">PT</a>
   </div>
@@ -70,19 +69,4 @@ const { Content } = await entry.render();
       Use arrow keys to navigate
     </p>
   </main>
-  <script>
-    const btn = document.getElementById('grain-toggle');
-    const status = document.getElementById('grain-status');
-
-    function updateStatus() {
-      status!.textContent = (window as any).isGrainEnabled() ? 'on' : 'off';
-    }
-
-    updateStatus();
-
-    btn?.addEventListener('click', () => {
-      (window as any).toggleGrain();
-      updateStatus();
-    });
-  </script>
 </Layout>

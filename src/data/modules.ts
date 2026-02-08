@@ -62,12 +62,7 @@ export const modules: Module[] = [
       'init-containers',
       'liveness-probes',
       'readiness-probes',
-      'startup-probes',
-      'lifecycle-hooks',
       'rolling-updates',
-      'graceful-shutdown',
-      'canary-deployments',
-      'production-checklist',
     ],
   },
   {
@@ -75,14 +70,8 @@ export const modules: Module[] = [
     key: 'scaling',
     lessons: [
       'resource-limits',
-      'resource-quotas',
       'hpa',
-      'node-affinity',
-      'pod-affinity',
-      'pod-anti-affinity',
       'taints-tolerations',
-      'topology-spread',
-      'pdb',
     ],
   },
   {
@@ -92,24 +81,7 @@ export const modules: Module[] = [
       'security-context',
       'service-accounts',
       'rbac',
-      'external-secrets',
       'pod-security-standards',
-    ],
-  },
-  {
-    id: '08-advanced',
-    key: 'advanced',
-    lessons: [
-      'kustomize',
-      'kustomize-overlays',
-      'statefulsets',
-      'daemonsets',
-      'jobs',
-      'leader-election',
-      'cluster-autoscaler',
-      'admission-webhooks',
-      'pod-priority',
-      'etcd-basics',
     ],
   },
   {
@@ -119,25 +91,6 @@ export const modules: Module[] = [
       'persistent-volumes',
       'persistent-volume-claims',
       'storage-classes',
-    ],
-  },
-  {
-    id: '10-multi-container-patterns',
-    key: 'patterns',
-    lessons: [
-      'sidecar-pattern',
-      'ambassador-pattern',
-      'adapter-pattern',
-    ],
-  },
-  {
-    id: '11-observability',
-    key: 'observability',
-    lessons: [
-      'prometheus-monitoring',
-      'logging-patterns',
-      'distributed-tracing',
-      'debugging-pods',
     ],
   },
 ];

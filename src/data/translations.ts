@@ -14,10 +14,7 @@ export const translations = {
       lifecycle: 'Workload Lifecycle',
       scaling: 'Scaling & Scheduling',
       security: 'Security',
-      advanced: 'Advanced',
       storage: 'Storage',
-      patterns: 'Multi-Container Patterns',
-      observability: 'Observability',
     },
   },
   'pt-br': {
@@ -35,10 +32,7 @@ export const translations = {
       lifecycle: 'Ciclo de Vida',
       scaling: 'Escala & Agendamento',
       security: 'Segurança',
-      advanced: 'Avançado',
       storage: 'Armazenamento',
-      patterns: 'Padrões Multi-Container',
-      observability: 'Observabilidade',
     },
   },
 } as const;

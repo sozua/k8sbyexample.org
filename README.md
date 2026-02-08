@@ -48,56 +48,23 @@
   - [Init Containers](https://k8sbyexample.org/init-containers)
   - [Liveness Probes](https://k8sbyexample.org/liveness-probes)
   - [Readiness Probes](https://k8sbyexample.org/readiness-probes)
-  - [Startup Probes](https://k8sbyexample.org/startup-probes)
-  - [Lifecycle Hooks](https://k8sbyexample.org/lifecycle-hooks)
   - [Rolling Updates](https://k8sbyexample.org/rolling-updates)
-  - [Graceful Shutdown](https://k8sbyexample.org/graceful-shutdown)
-  - [Canary Deployments](https://k8sbyexample.org/canary-deployments)
 
 - Scaling & Scheduling
   - [Resource Limits](https://k8sbyexample.org/resource-limits)
-  - [Resource Quotas](https://k8sbyexample.org/resource-quotas)
   - [HPA](https://k8sbyexample.org/hpa)
-  - [Node Affinity](https://k8sbyexample.org/node-affinity)
-  - [Pod Affinity](https://k8sbyexample.org/pod-affinity)
-  - [Pod Anti-Affinity](https://k8sbyexample.org/pod-anti-affinity)
   - [Taints & Tolerations](https://k8sbyexample.org/taints-tolerations)
-  - [Topology Spread](https://k8sbyexample.org/topology-spread)
-  - [Pod Disruption Budgets](https://k8sbyexample.org/pdb)
 
 - Security
   - [Security Context](https://k8sbyexample.org/security-context)
   - [Service Accounts](https://k8sbyexample.org/service-accounts)
   - [RBAC](https://k8sbyexample.org/rbac)
-  - [External Secrets](https://k8sbyexample.org/external-secrets)
   - [Pod Security Standards](https://k8sbyexample.org/pod-security-standards)
-
-- Advanced
-  - [Kustomize](https://k8sbyexample.org/kustomize)
-  - [Kustomize Overlays](https://k8sbyexample.org/kustomize-overlays)
-  - [StatefulSets](https://k8sbyexample.org/statefulsets)
-  - [DaemonSets](https://k8sbyexample.org/daemonsets)
-  - [Jobs](https://k8sbyexample.org/jobs)
-  - [Leader Election](https://k8sbyexample.org/leader-election)
-  - [Cluster Autoscaler](https://k8sbyexample.org/cluster-autoscaler)
-  - [Admission Webhooks](https://k8sbyexample.org/admission-webhooks)
-  - [Pod Priority](https://k8sbyexample.org/pod-priority)
-  - [etcd Basics](https://k8sbyexample.org/etcd-basics)
 
 - Storage
   - [Persistent Volumes](https://k8sbyexample.org/persistent-volumes)
   - [Persistent Volume Claims](https://k8sbyexample.org/persistent-volume-claims)
   - [Storage Classes](https://k8sbyexample.org/storage-classes)
-
-- Multi-Container Patterns
-  - [Sidecar](https://k8sbyexample.org/sidecar-pattern)
-  - [Ambassador](https://k8sbyexample.org/ambassador-pattern)
-  - [Adapter](https://k8sbyexample.org/adapter-pattern)
-
-- Observability
-  - [Prometheus Monitoring](https://k8sbyexample.org/prometheus-monitoring)
-  - [Logging Patterns](https://k8sbyexample.org/logging-patterns)
-  - [Distributed Tracing](https://k8sbyexample.org/distributed-tracing)
 
 ## Development
 
