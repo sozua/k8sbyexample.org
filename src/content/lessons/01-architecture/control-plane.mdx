@@ -4,6 +4,7 @@ description: "The brain of Kubernetes: API Server, etcd, Scheduler, Controllers"
 order: 1
 ---
 import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+import Mermaid from '@components/Mermaid.astro';
 
 
 <Intro>
@@ -12,23 +13,20 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
 
 <table class="example-table">
   <tbody>
-    <FileHeader filename="architecture.txt" />
+    <FileHeader filename="architecture" />
     <Row last>
       <p slot="docs">All components communicate through the API Server. etcd stores state, Scheduler places Pods, Controllers reconcile state.</p>
       <Fragment slot="code">
-```
-┌─────────────────────────────────────────────────────┐
-│                   Control Plane                     │
-│  ┌──────────┐  ┌───────────┐  ┌──────────────────┐  │
-│  │   etcd   │  │    API    │  │    Controller    │  │
-│  │ (state)  │◄─┤   Server  │◄─┤     Manager      │  │
-│  └──────────┘  └─────┬─────┘  └──────────────────┘  │
-│                      │        ┌──────────────────┐  │
-│                      │        │    Scheduler     │  │
-│                      └───────►│  (Pod placement) │  │
-│                               └──────────────────┘  │
-└─────────────────────────────────────────────────────┘
-```
+        <Mermaid chart={`graph TD
+  subgraph Control Plane
+    API[API Server]
+    ETCD[etcd]
+    CM[Controller Manager]
+    SCHED[Scheduler]
+  end
+  CM -->|reconciles| API
+  SCHED -->|binds Pods| API
+  API -->|reads/writes| ETCD`} />
       </Fragment>
     </Row>
   </tbody>
@@ -192,26 +190,34 @@ Cloud Controller Manager:
 
 <table class="example-table">
   <tbody>
-    <FileHeader filename="ha-control-plane.txt" />
+    <FileHeader filename="ha-control-plane" />
     <Row last>
       <p slot="docs">High availability requires 3+ control plane nodes. API Servers run behind a load balancer. etcd needs odd number for quorum. Scheduler and Controller Manager use leader election.</p>
       <Fragment slot="code">
-```
-HA Control Plane (3 nodes minimum):
-
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│   Node 1     │  │   Node 2     │  │   Node 3     │
-│ ┌──────────┐ │  │ ┌──────────┐ │  │ ┌──────────┐ │
-│ │API Server│ │  │ │API Server│ │  │ │API Server│ │
-│ └────┬─────┘ │  │ └────┬─────┘ │  │ └────┬─────┘ │
-│ ┌────┴─────┐ │  │ ┌────┴─────┐ │  │ ┌────┴─────┐ │
-│ │   etcd   │◄┼──┼►│   etcd   │◄┼──┼►│   etcd   │ │
-│ └──────────┘ │  │ └──────────┘ │  │ └──────────┘ │
-│ Scheduler(L) │  │ Scheduler    │  │ Scheduler    │
-│ Controller(L)│  │ Controller   │  │ Controller   │
-└──────────────┘  └──────────────┘  └──────────────┘
-    (L) = Leader
-```
+        <Mermaid chart={`graph TD
+  subgraph Node 1
+    API1[API Server]
+    ETCD1[etcd]
+    S1[Scheduler - Leader]
+    C1[Controller - Leader]
+    API1 --- ETCD1
+  end
+  subgraph Node 2
+    API2[API Server]
+    ETCD2[etcd]
+    S2[Scheduler]
+    C2[Controller]
+    API2 --- ETCD2
+  end
+  subgraph Node 3
+    API3[API Server]
+    ETCD3[etcd]
+    S3[Scheduler]
+    C3[Controller]
+    API3 --- ETCD3
+  end
+  ETCD1 <-->|Raft consensus| ETCD2
+  ETCD2 <-->|Raft consensus| ETCD3`} />
       </Fragment>
     </Row>
   </tbody>

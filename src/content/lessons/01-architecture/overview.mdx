@@ -4,6 +4,7 @@ description: "The big picture: how Kubernetes components fit together"
 order: 0
 ---
 import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+import Mermaid from '@components/Mermaid.astro';
 
 <Intro>
   <p>Kubernetes orchestrates containers across a cluster of machines. This guide shows how the core components fit together: Cluster, Nodes, Pods, Deployments, and Services.</p>
@@ -11,25 +12,24 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
 
 <table class="example-table">
   <tbody>
-    <FileHeader filename="cluster-overview.txt" />
+    <FileHeader filename="cluster-overview" />
     <Row last>
       <p slot="docs">A <strong>Cluster</strong> is a set of machines (nodes) running Kubernetes. The Control Plane manages the cluster, worker nodes run your applications.</p>
       <Fragment slot="code">
-```
-+-----------------------------------------------------------+
-|                         CLUSTER                           |
-|                                                           |
-|  +---------------+      +---------------------------+     |
-|  | Control Plane |      |       Worker Nodes        |     |
-|  |               |      |                           |     |
-|  |  - API Server |----->|  +--------+   +--------+  |     |
-|  |  - Scheduler  |      |  | Node 1 |   | Node 2 |  |     |
-|  |  - etcd       |      |  | (Pods) |   | (Pods) |  |     |
-|  |               |      |  +--------+   +--------+  |     |
-|  +---------------+      +---------------------------+     |
-|                                                           |
-+-----------------------------------------------------------+
-```
+        <Mermaid chart={`graph LR
+  subgraph Cluster
+    subgraph Control Plane
+      API[API Server]
+      SCHED[Scheduler]
+      ETCD[etcd]
+    end
+    subgraph Worker Nodes
+      N1[Node 1]
+      N2[Node 2]
+    end
+  end
+  API --> N1
+  API --> N2`} />
       </Fragment>
     </Row>
   </tbody>
@@ -37,26 +37,23 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
 
 <table class="example-table">
   <tbody>
-    <FileHeader filename="node.txt" />
+    <FileHeader filename="node" />
     <Row last>
       <p slot="docs">A <strong>Node</strong> is a machine (physical or virtual) in the cluster. Each node runs kubelet (agent), kube-proxy (networking), and a container runtime. Nodes host Pods.</p>
       <Fragment slot="code">
-```
-+-----------------------------------------+
-|                  NODE                   |
-|                                         |
-|  +-----------------------------------+  |
-|  | kubelet          (talks to API)   |  |
-|  | kube-proxy       (networking)     |  |
-|  | container runtime (runs pods)     |  |
-|  +-----------------------------------+  |
-|                                         |
-|  +---------+ +---------+ +---------+    |
-|  |  Pod A  | |  Pod B  | |  Pod C  |    |
-|  +---------+ +---------+ +---------+    |
-|                                         |
-+-----------------------------------------+
-```
+        <Mermaid chart={`graph TD
+  subgraph Node
+    KUB[kubelet - talks to API]
+    KP[kube-proxy - networking]
+    CRI[container runtime - runs pods]
+    PA[Pod A]
+    PB[Pod B]
+    PC[Pod C]
+    KUB --> CRI
+    CRI --> PA
+    CRI --> PB
+    CRI --> PC
+  end`} />
       </Fragment>
     </Row>
   </tbody>
@@ -64,28 +61,19 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
 
 <table class="example-table">
   <tbody>
-    <FileHeader filename="pod.txt" />
+    <FileHeader filename="pod" />
     <Row last>
       <p slot="docs">A <strong>Pod</strong> is the smallest deployable unit. It wraps one or more containers that share network (same IP) and storage. Containers in a Pod communicate via localhost.</p>
       <Fragment slot="code">
-```
-+---------------------------------------+
-|                 POD                   |
-|            IP: 10.244.1.5             |
-|                                       |
-|  +-------------+   +-------------+    |
-|  |  Container  |   |  Container  |    |
-|  |    nginx    |   |   sidecar   |    |
-|  |     :80     |   |    :9090    |    |
-|  +-------------+   +-------------+    |
-|         ^                 ^           |
-|         +--- localhost ---+           |
-|                                       |
-|  +----------------------------------+ |
-|  |          Shared Volume           | |
-|  +----------------------------------+ |
-+---------------------------------------+
-```
+        <Mermaid chart={`graph TD
+  subgraph Pod - IP: 10.244.1.5
+    NGINX[nginx :80]
+    SIDE[sidecar :9090]
+    VOL[Shared Volume]
+    NGINX <-->|localhost| SIDE
+    NGINX --- VOL
+    SIDE --- VOL
+  end`} />
       </Fragment>
     </Row>
   </tbody>
@@ -93,27 +81,18 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
 
 <table class="example-table">
   <tbody>
-    <FileHeader filename="deployment-replicaset-pod.txt" />
+    <FileHeader filename="deployment-replicaset-pod" />
     <Row last>
       <p slot="docs"><strong>Deployment</strong> manages <strong>ReplicaSets</strong>, which ensure N copies of a Pod run. You define desired state, Kubernetes maintains it. Deployments handle rolling updates.</p>
       <Fragment slot="code">
-```
-+-----------------------------------------------+
-|                  DEPLOYMENT                   |
-|                  replicas: 3                  |
-|                                               |
-|  +-----------------------------------------+  |
-|  |               REPLICASET                |  |
-|  |                                         |  |
-|  |  +---------+ +---------+ +---------+    |  |
-|  |  |   Pod   | |   Pod   | |   Pod   |    |  |
-|  |  |  nginx  | |  nginx  | |  nginx  |    |  |
-|  |  +---------+ +---------+ +---------+    |  |
-|  |                                         |  |
-|  +-----------------------------------------+  |
-|                                               |
-+-----------------------------------------------+
-```
+        <Mermaid chart={`graph TD
+  subgraph Deployment - replicas: 3
+    subgraph ReplicaSet
+      P1[Pod nginx]
+      P2[Pod nginx]
+      P3[Pod nginx]
+    end
+  end`} />
       </Fragment>
     </Row>
   </tbody>
@@ -121,26 +100,15 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
 
 <table class="example-table">
   <tbody>
-    <FileHeader filename="service.txt" />
+    <FileHeader filename="service" />
     <Row last>
       <p slot="docs">A <strong>Service</strong> provides a stable IP and DNS name to access Pods. Pods are ephemeral (they come and go), but Services give a fixed endpoint. Load balances across matching Pods.</p>
       <Fragment slot="code">
-```
-                +-----------------+
-                |     SERVICE     |
- requests ----->|  nginx-service  |
-                |   10.96.0.100   |
-                +--------+--------+
-                         |
-         +---------------+---------------+
-         |               |               |
-         v               v               v
-   +------------+   +------------+   +------------+
-   |     Pod    |   |     Pod    |   |     Pod    |
-   |    nginx   |   |    nginx   |   |    nginx   |
-   | 10.244.1.5 |   | 10.244.2.3 |   | 10.244.3.7 |
-   +------------+   +------------+   +------------+
-```
+        <Mermaid chart={`graph TD
+  REQ[requests] --> SVC[Service: nginx-service]
+  SVC --> P1[Pod 10.244.1.5]
+  SVC --> P2[Pod 10.244.2.3]
+  SVC --> P3[Pod 10.244.3.7]`} />
       </Fragment>
     </Row>
   </tbody>
@@ -148,27 +116,21 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
 
 <table class="example-table">
   <tbody>
-    <FileHeader filename="namespace.txt" />
+    <FileHeader filename="namespace" />
     <Row last>
       <p slot="docs"><strong>Namespaces</strong> divide a cluster into virtual clusters. Use them to separate teams, environments (dev/prod), or projects. Resources in different namespaces are isolated by default.</p>
       <Fragment slot="code">
-```
-+-------------------------------------------------+
-|                    CLUSTER                      |
-|                                                 |
-|  +---------------+     +---------------+        |
-|  |  namespace:   |     |  namespace:   |        |
-|  |     dev       |     |     prod      |        |
-|  |               |     |               |        |
-|  | +-----------+ |     | +-----------+ |  same  |
-|  | | nginx-svc | |     | | nginx-svc | |  names |
-|  | | nginx-pod | |     | | nginx-pod | |        |
-|  | +-----------+ |     | +-----------+ |        |
-|  |               |     |               |        |
-|  +---------------+     +---------------+        |
-|                                                 |
-+-------------------------------------------------+
-```
+        <Mermaid chart={`graph LR
+  subgraph Cluster
+    subgraph ns: dev
+      D1[nginx-svc]
+      D2[nginx-pod]
+    end
+    subgraph ns: prod
+      P1[nginx-svc]
+      P2[nginx-pod]
+    end
+  end`} />
       </Fragment>
     </Row>
   </tbody>
@@ -176,22 +138,15 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
 
 <table class="example-table">
   <tbody>
-    <FileHeader filename="labels-selectors.txt" />
+    <FileHeader filename="labels-selectors" />
     <Row last>
       <p slot="docs"><strong>Labels</strong> are key-value tags on resources. <strong>Selectors</strong> find resources by labels. This is how Services find Pods, and how you organize resources.</p>
       <Fragment slot="code">
-```
-    Service selector: app=nginx
-                      |
-        +-------------+-------------+
-        |             |             |
-        v             v             v
-  +-----------+ +-----------+ +-----------+
-  |    Pod    | |    Pod    | |    Pod    |
-  | app=nginx | | app=nginx | | app=redis |
-  +-----------+ +-----------+ +-----------+
-       [x]           [x]       [ ] not selected
-```
+        <Mermaid chart={`graph TD
+  SVC[Service selector: app=nginx]
+  SVC -->|matches| P1[Pod app=nginx]
+  SVC -->|matches| P2[Pod app=nginx]
+  SVC -.-|no match| P3[Pod app=redis]`} />
       </Fragment>
     </Row>
   </tbody>
@@ -199,28 +154,16 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
 
 <table class="example-table">
   <tbody>
-    <FileHeader filename="configmap-secret.txt" />
+    <FileHeader filename="configmap-secret" />
     <Row last>
       <p slot="docs"><strong>ConfigMap</strong> stores configuration (env vars, config files). <strong>Secret</strong> stores sensitive data (passwords, tokens). Both inject data into Pods without hardcoding.</p>
       <Fragment slot="code">
-```
-+----------------+     +----------------+
-|   ConfigMap    |     |     Secret     |
-|                |     |                |
-| DB_HOST=mysql  |     | DB_PASS=****   |
-| LOG_LEVEL=info |     | API_KEY=****   |
-+-------+--------+     +-------+--------+
-        |                      |
-        +----------+-----------+
-                   |
-                   v
-            +-------------+
-            |     Pod     |
-            |             |
-            | DB_HOST     | <- ConfigMap
-            | DB_PASS     | <- Secret
-            +-------------+
-```
+        <Mermaid chart={`graph TD
+  CM[ConfigMap]
+  SEC[Secret]
+  POD[Pod]
+  CM -->|DB_HOST, LOG_LEVEL| POD
+  SEC -->|DB_PASS, API_KEY| POD`} />
       </Fragment>
     </Row>
   </tbody>
@@ -228,27 +171,21 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
 
 <table class="example-table">
   <tbody>
-    <FileHeader filename="full-picture.txt" />
+    <FileHeader filename="full-picture" />
     <Row last>
       <p slot="docs">Putting it all together: Deployments manage Pods, Services expose them, ConfigMaps/Secrets configure them, all organized in Namespaces.</p>
       <Fragment slot="code">
-```
-+---------------- namespace: production ----------------+
-|                                                       |
-|  +-------------+    +---------------------------+     |
-|  |  ConfigMap  |    |        Deployment         |     |
-|  |  Secret     |--->|  +-----+ +-----+ +-----+  |     |
-|  +-------------+    |  | Pod | | Pod | | Pod |  |     |
-|                     |  +-----+ +-----+ +-----+  |     |
-|                     +-------------+-------------+     |
-|                                   |                   |
-|                          +--------+--------+          |
-|                          |     Service     |          |
-|     users -------------->|   (ClusterIP)   |          |
-|                          +-----------------+          |
-|                                                       |
-+-------------------------------------------------------+
-```
+        <Mermaid chart={`graph LR
+  subgraph namespace: production
+    USERS[users] -->|requests| SVC[Service]
+    SVC --> DEP
+    CONFIG[ConfigMap + Secret] -->|configures| DEP
+    subgraph DEP[Deployment]
+      P1[Pod]
+      P2[Pod]
+      P3[Pod]
+    end
+  end`} />
       </Fragment>
     </Row>
   </tbody>

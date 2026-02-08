@@ -83,9 +83,21 @@ import Check from 'lucide-astro/Check';
       });
     }
 
+    function hideDiagramCopyButtons() {
+      document.querySelectorAll('table.example-table').forEach(table => {
+        if (table.querySelector('.mermaid-diagram')) {
+          const copyBtn = table.querySelector('.copy-btn');
+          if (copyBtn) {
+            copyBtn.style.display = 'none';
+          }
+        }
+      });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       highlightTerminalCommands();
       hideMultiCommandCopyButtons();
+      hideDiagramCopyButtons();
     });
 
     document.addEventListener('click', handleCopyClick);

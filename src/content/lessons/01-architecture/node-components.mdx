@@ -4,6 +4,7 @@ description: "Worker node internals: kubelet, kube-proxy, container runtime"
 order: 2
 ---
 import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
+import Mermaid from '@components/Mermaid.astro';
 
 
 <Intro>
@@ -12,24 +13,20 @@ import { Intro, FileHeader, TerminalHeader, Row } from '@components/codeblock';
 
 <table class="example-table">
   <tbody>
-    <FileHeader filename="node-architecture.txt" />
+    <FileHeader filename="node-architecture" />
     <Row last>
       <p slot="docs">The kubelet manages Pods, kube-proxy handles networking rules, and the container runtime executes containers.</p>
       <Fragment slot="code">
-```
-┌─────────────────────────────────────────────────────┐
-│                    Worker Node                      │
-│  ┌──────────────────────────────────────────────┐   │
-│  │                   kubelet                    │   │
-│  └──────────────────────────────────────────────┘   │
-│  ┌─────────────────┐  ┌─────────────────────────┐   │
-│  │   kube-proxy    │  │   Container Runtime     │   │
-│  └─────────────────┘  └─────────────────────────┘   │
-│  ┌──────────────────────────────────────────────┐   │
-│  │              Pods (containers)               │   │
-│  └──────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────┘
-```
+        <Mermaid chart={`graph TD
+  subgraph Worker Node
+    KUBELET[kubelet]
+    PROXY[kube-proxy]
+    CRI[Container Runtime]
+    PODS[Pods - containers]
+    KUBELET --> CRI
+    KUBELET --> PODS
+    PROXY --> PODS
+  end`} />
       </Fragment>
     </Row>
   </tbody>

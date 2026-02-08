@@ -1,0 +1,30 @@
+---
+import { renderMermaid } from 'beautiful-mermaid';
+
+interface Props {
+  chart: string;
+}
+
+const { chart } = Astro.props;
+
+const svg = await renderMermaid(chart, {
+  bg: '#111111',
+  fg: 'rgba(255, 255, 255, 0.85)',
+  transparent: true,
+});
+---
+
+<div class="mermaid-diagram" set:html={svg} />
+
+<style>
+  .mermaid-diagram {
+    display: flex;
+    justify-content: center;
+    margin: 0;
+  }
+  .mermaid-diagram :global(svg) {
+    width: 100%;
+    height: auto;
+    max-width: 520px;
+  }
+</style>
